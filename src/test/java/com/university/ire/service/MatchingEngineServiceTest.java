@@ -68,7 +68,7 @@ class MatchingEngineServiceTest {
         existing.setFirstName("Amy");
         existing.setLastName("Chan");
 
-        when(identityRepository.findAll()).thenReturn(List.of(existing));
+        when(identityRepository.findAllByEmailIgnoreCase("amy.chan@hkust.edu.hk")).thenReturn(List.of(existing));
 
         MatchingEngineService.MatchingOutcome outcome = matchingEngineService.resolve(input);
 

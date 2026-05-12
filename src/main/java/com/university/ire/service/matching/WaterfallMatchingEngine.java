@@ -58,7 +58,10 @@ public class WaterfallMatchingEngine {
             return Optional.empty();
         }
 
-        List<Identity> candidates = identityRepository.findAll();
+        List<Identity> candidates = identityRepository.findAllByEmailIgnoreCase(input.getEmail());
+        if (candidates.isEmpty()) {
+            return Optional.empty();
+        }
         String incomingName = input.fullName().toLowerCase();
         LevenshteinDistance distance = LevenshteinDistance.getDefaultInstance();
 
