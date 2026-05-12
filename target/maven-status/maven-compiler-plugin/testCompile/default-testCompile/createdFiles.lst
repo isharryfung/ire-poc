@@ -1,5 +1,0 @@
-org/hkust/ire/db/persistence/service/MatchingEngineServiceTest.class
-org/hkust/ire/scheduler/IreProcessBatchTest.class
-org/hkust/ire/web/controller/ApiGatewayControllerTest.class
-org/hkust/ire/db/persistence/service/IdentityResolutionServiceTest.class
-org/hkust/ire/integration/FullPipelineIntegrationTest.class
