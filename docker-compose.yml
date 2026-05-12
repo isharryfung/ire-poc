@@ -1,0 +1,27 @@
+version: '3.8'
+services:
+  oracle:
+    image: gvenzl/oracle-free:latest
+    environment:
+      ORACLE_PASSWORD: oracle
+    ports:
+      - "1521:1521"
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+  app:
+    build: .
+    depends_on:
+      - oracle
+      - redis
+    environment:
+      DB_URL: jdbc:oracle:thin:@//oracle:1521/FREEPDB1
+      DB_USER: system
+      DB_PASSWORD: oracle
+      DB_DRIVER: oracle.jdbc.OracleDriver
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      HIBERNATE_DIALECT: org.hibernate.dialect.OracleDialect
+    ports:
+      - "8080:8080"

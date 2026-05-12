@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "3rd-party Forms Payload",
+  "type": "object",
+  "required": ["source_form", "email"],
+  "properties": {
+    "source_form": {"type": "string"},
+    "name": {"type": "string"},
+    "email": {"type": "string", "format": "email"},
+    "phone": {"type": "string"},
+    "student_id": {"type": "string"},
+    "custom_fields": {"type": "object"}
+  }
+}

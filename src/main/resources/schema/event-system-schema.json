@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Event System Payload",
+  "type": "object",
+  "required": ["name", "email"],
+  "properties": {
+    "name": {"type": "string"},
+    "email": {"type": "string", "format": "email"},
+    "student_id": {"type": "string"},
+    "phone": {"type": "string"},
+    "hkid": {"type": "string"}
+  }
+}
