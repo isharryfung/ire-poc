@@ -1,6 +1,11 @@
 package org.hkust.ire.db.persistence.service.matching;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+import java.util.Collections;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -11,15 +16,19 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageImpl;
 
+import org.hkust.ire.common.constant.MatchTierConstant;
+import org.hkust.ire.db.persistence.domain.IdentityDAO;
 import org.hkust.ire.db.persistence.repository.IdentityRepository;
-import org.hkust.ire.dto.IdentityMatchRequest;
+import org.hkust.ire.dto.CanonicalIdentity;
+import org.hkust.ire.dto.IdentityMatchResponse;
 
 /**
  * Mock-based unit tests for Waterfall Matching Engine
- * 
- * Tests waterfall cascading logic, early exit principle, and field scoring
- * 
+ *
+ * Tests waterfall cascading logic and early-exit principle.
+ *
  * @author isharryfung
  * @since 2026-05-13
  */
@@ -32,6 +41,9 @@ public class WaterfallMatchingEngineMockTest {
     @Mock
     private IdentityRepository identityRepository;
 
+    @Mock
+    private ConfidenceCalculator confidenceCalculator;
+
     @InjectMocks
     private WaterfallMatchingEngine engine;
 
@@ -40,114 +52,170 @@ public class WaterfallMatchingEngineMockTest {
         log.info("Setting up Waterfall Matching Engine tests");
     }
 
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
+
+    private IdentityDAO mockIdentity(String goldenId, String email) {
+        IdentityDAO dao = new IdentityDAO();
+        dao.setGoldenId(goldenId);
+        dao.setEmail(email);
+        return dao;
+    }
+
+    private CanonicalIdentity withHkid(String hkid) {
+        CanonicalIdentity c = new CanonicalIdentity();
+        c.setSourceSystem("ADMS");
+        c.setHkid(hkid);
+        return c;
+    }
+
+    private CanonicalIdentity withEmail(String email) {
+        CanonicalIdentity c = new CanonicalIdentity();
+        c.setSourceSystem("EVENT_SYSTEM");
+        c.setEmail(email);
+        return c;
+    }
+
+    // ------------------------------------------------------------------
+    // Tests
+    // ------------------------------------------------------------------
+
     /**
-     * Test Waterfall Principle: Early Exit
+     * Test Waterfall Principle: Early Exit on TIER-1 HKID match
      */
     @Test
-    @DisplayName("Waterfall: Early Exit - Stop after first match (100%)")
+    @DisplayName("Waterfall: Early Exit - TIER-1 match stops cascade")
     public void testWaterfallEarlyExit() {
         log.info("Test: Waterfall early exit principle");
 
-        IdentityMatchRequest request = new IdentityMatchRequest();
-        request.setHkid("A123456789");
+        IdentityDAO existing = mockIdentity("GOLDEN-001", "john@example.com");
+        when(identityRepository.findByHkid("A123456789")).thenReturn(Optional.of(existing));
+
+        CanonicalIdentity request = withHkid("A123456789");
         request.setEmail("john@example.com");
-        request.setMobile("98765432");
+        request.setPhone("98765432");
 
-        double score = engine.calculateScore(request);
+        IdentityMatchResponse response = engine.match(request);
 
-        assertEquals(1.0, score, "Should return 100% from HKID match");
-        log.info("✅ Waterfall early exit test PASSED");
+        assertNotNull(response);
+        assertTrue(response.isMatched(), "Should be matched");
+        assertEquals(MatchTierConstant.TIER_1, response.getMatchTier(), "Should return TIER_1");
+        assertEquals(1.0, response.getConfidenceScore(), "Confidence should be 100%");
+        assertEquals("GOLDEN-001", response.getGoldenId());
+
+        // Ensure Tier-2 (DB scan) was never triggered
+        verify(identityRepository, never()).findByStatus(any(), any());
+
+        log.info("Waterfall early exit test PASSED");
     }
 
     /**
-     * Test Waterfall: No Penalty for Missing Fields
+     * Test: TIER-2 match via confidence calculator when TIER-1 finds nothing
      */
     @Test
-    @DisplayName("Waterfall: No Penalty for Missing Fields")
-    public void testWaterfallNoPenaltyForMissingFields() {
-        log.info("Test: No penalty for missing fields");
+    @DisplayName("Waterfall: TIER-2 Match - Email probabilistic match")
+    public void testTier2Match() {
+        log.info("Test: TIER-2 probabilistic match");
 
-        IdentityMatchRequest request = new IdentityMatchRequest();
-        request.setEmail("john@example.com");
+        IdentityDAO candidate = mockIdentity("GOLDEN-002", "user@example.com");
 
-        double score = engine.calculateScore(request);
+        when(identityRepository.findByEmail("user@example.com")).thenReturn(Optional.empty());
+        when(identityRepository.findByStatus(eq("ACTIVE"), any()))
+            .thenReturn(new PageImpl<>(Collections.singletonList(candidate)));
+        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate)))
+            .thenReturn(0.80);
 
-        assertTrue(score >= 0.70 && score <= 0.80);
-        log.info("✅ No penalty test PASSED (Score: {}%)", (int)(score*100));
+        CanonicalIdentity request = withEmail("user@example.com");
+
+        IdentityMatchResponse response = engine.match(request);
+
+        assertNotNull(response);
+        assertTrue(response.isMatched());
+        assertEquals(MatchTierConstant.TIER_2, response.getMatchTier());
+        assertTrue(response.getConfidenceScore() >= 0.70, "Score should exceed TIER_2_THRESHOLD");
+
+        log.info("TIER-2 match test PASSED (score={})", response.getConfidenceScore());
     }
 
     /**
-     * Test: Cascading Confidence Levels
+     * Test: No match when confidence is too low
      */
     @Test
-    @DisplayName("Test: Cascading Confidence Levels (100%, 95%, 90%, 85%, 75%)")
-    public void testCascadingConfidenceLevels() {
-        log.info("Test: All cascading confidence levels");
+    @DisplayName("No Match: Low confidence score below threshold")
+    public void testNoMatchLowConfidence() {
+        log.info("Test: No match - low confidence");
 
-        // Test 100% - HKID
-        IdentityMatchRequest req100 = new IdentityMatchRequest();
-        req100.setHkid("A123456789");
-        assertEquals(1.0, engine.calculateScore(req100));
-        log.info("✅ 100% confidence test PASSED");
+        IdentityDAO candidate = mockIdentity("GOLDEN-999", "other@example.com");
 
-        // Test 95% - Email + Mobile
-        IdentityMatchRequest req95 = new IdentityMatchRequest();
-        req95.setEmail("user@example.com");
-        req95.setMobile("98765432");
-        assertTrue(engine.calculateScore(req95) >= 0.95);
-        log.info("✅ 95% confidence test PASSED");
+        when(identityRepository.findByEmail("new@example.com")).thenReturn(Optional.empty());
+        when(identityRepository.findByStatus(eq("ACTIVE"), any()))
+            .thenReturn(new PageImpl<>(Collections.singletonList(candidate)));
+        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), any()))
+            .thenReturn(0.20);
 
-        // Test 75% - Email only
-        IdentityMatchRequest req75 = new IdentityMatchRequest();
-        req75.setEmail("user@example.com");
-        assertTrue(engine.calculateScore(req75) >= 0.70);
-        log.info("✅ 75% confidence test PASSED");
+        CanonicalIdentity request = withEmail("new@example.com");
 
-        // Test 0% - Name only (insufficient)
-        IdentityMatchRequest req0 = new IdentityMatchRequest();
-        req0.setName("User");
-        assertEquals(0.0, engine.calculateScore(req0));
-        log.info("✅ 0% confidence test PASSED");
+        IdentityMatchResponse response = engine.match(request);
+
+        assertNotNull(response);
+        assertFalse(response.isMatched(), "Should not match with low confidence");
+        assertEquals(MatchTierConstant.TIER_3, response.getMatchTier());
+
+        log.info("No match / low confidence test PASSED");
     }
 
     /**
-     * Test: Field Mismatch Penalty (-50%)
+     * Test: Empty candidate list routes to TIER-3
      */
     @Test
-    @DisplayName("Test: Field Mismatch Penalty (-50%)")
-    public void testFieldMismatchPenalty() {
-        log.info("Test: Field mismatch penalty");
+    @DisplayName("Waterfall: Empty candidates → TIER-3")
+    public void testEmptyCandidatesNoMatch() {
+        log.info("Test: Empty candidate pool");
 
-        IdentityMatchRequest request = new IdentityMatchRequest();
-        request.setEmail("john@example.com");
-        request.setName("Jane Doe");  // Mismatch
+        when(identityRepository.findByHkid(any())).thenReturn(Optional.empty());
+        when(identityRepository.findByStaffId(any())).thenReturn(Optional.empty());
+        when(identityRepository.findByStudentId(any())).thenReturn(Optional.empty());
+        when(identityRepository.findByEmail(any())).thenReturn(Optional.empty());
+        when(identityRepository.findByStatus(eq("ACTIVE"), any()))
+            .thenReturn(new PageImpl<>(Collections.emptyList()));
 
-        double score = engine.calculateScore(request);
+        CanonicalIdentity request = new CanonicalIdentity();
+        request.setSourceSystem("THIRD_PARTY");
+        request.setFirstName("Ghost");
 
-        assertTrue(score < 0.50, "Mismatched fields should have penalty");
-        log.info("✅ Mismatch penalty test PASSED (Score: {}%)", (int)(score*100));
+        IdentityMatchResponse response = engine.match(request);
+
+        assertNotNull(response);
+        assertFalse(response.isMatched());
+        assertEquals(MatchTierConstant.TIER_3, response.getMatchTier());
+
+        log.info("Empty candidates test PASSED");
     }
 
     /**
-     * Test: Field Scoring Breakdown
+     * Test: TIER-1 match on StaffId
      */
     @Test
-    @DisplayName("Test: Field Scoring Breakdown (40%, 30%, 15%, 15%)")
-    public void testFieldScoringBreakdown() {
-        log.info("Test: Field scoring breakdown");
+    @DisplayName("TIER-1: Exact match on StaffId")
+    public void testTier1StaffIdMatch() {
+        log.info("Test: TIER-1 StaffId match");
 
-        double emailScore = engine.getFieldScore("email");
-        assertEquals(0.40, emailScore);
+        IdentityDAO existing = mockIdentity("GOLDEN-STAFF-001", "staff@hkust.edu.hk");
+        when(identityRepository.findByHkid(any())).thenReturn(Optional.empty());
+        when(identityRepository.findByStaffId("STAFF20150001")).thenReturn(Optional.of(existing));
 
-        double mobileScore = engine.getFieldScore("mobile");
-        assertEquals(0.30, mobileScore);
+        CanonicalIdentity request = new CanonicalIdentity();
+        request.setSourceSystem("ADMS");
+        request.setStaffId("STAFF20150001");
 
-        double nameScore = engine.getFieldScore("name");
-        assertEquals(0.15, nameScore);
+        IdentityMatchResponse response = engine.match(request);
 
-        double dobScore = engine.getFieldScore("dob");
-        assertEquals(0.15, dobScore);
+        assertTrue(response.isMatched());
+        assertEquals(MatchTierConstant.TIER_1, response.getMatchTier());
+        assertEquals(1.0, response.getConfidenceScore());
+        assertEquals("GOLDEN-STAFF-001", response.getGoldenId());
 
-        log.info("✅ Field scoring breakdown test PASSED");
+        log.info("TIER-1 StaffId test PASSED");
     }
 }

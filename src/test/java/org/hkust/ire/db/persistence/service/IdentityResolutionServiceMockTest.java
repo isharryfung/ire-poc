@@ -1,6 +1,7 @@
 package org.hkust.ire.db.persistence.service;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -13,17 +14,25 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Optional;
+
+import org.hkust.ire.common.constant.MatchTierConstant;
 import org.hkust.ire.db.persistence.domain.IdentityDAO;
+import org.hkust.ire.db.persistence.repository.AuditLogRepository;
+import org.hkust.ire.db.persistence.repository.IdentityLinkRepository;
 import org.hkust.ire.db.persistence.repository.IdentityRepository;
+import org.hkust.ire.db.persistence.service.identity.IdentityCacheService;
+import org.hkust.ire.db.persistence.service.identity.IdentityResolutionService;
 import org.hkust.ire.db.persistence.service.matching.MatchingEngineService;
-import org.hkust.ire.dto.IdentityMatchRequest;
+import org.hkust.ire.db.persistence.service.review.ManualReviewService;
+import org.hkust.ire.dto.CanonicalIdentity;
 import org.hkust.ire.dto.IdentityMatchResponse;
 
 /**
  * Mock-based unit tests for Identity Resolution Service
- * 
- * Tests TIER-1, TIER-2, and TIER-3 matching logic without database
- * 
+ *
+ * Tests TIER-1, TIER-2, and TIER-3 orchestration logic without database.
+ *
  * @author isharryfung
  * @since 2026-05-13
  */
@@ -34,10 +43,22 @@ public class IdentityResolutionServiceMockTest {
     private static final Logger log = LoggerFactory.getLogger(IdentityResolutionServiceMockTest.class);
 
     @Mock
+    private MatchingEngineService matchingEngineService;
+
+    @Mock
     private IdentityRepository identityRepository;
 
     @Mock
-    private MatchingEngineService matchingEngineService;
+    private IdentityLinkRepository identityLinkRepository;
+
+    @Mock
+    private AuditLogRepository auditLogRepository;
+
+    @Mock
+    private ManualReviewService manualReviewService;
+
+    @Mock
+    private IdentityCacheService identityCacheService;
 
     @InjectMocks
     private IdentityResolutionService identityResolutionService;
@@ -47,6 +68,50 @@ public class IdentityResolutionServiceMockTest {
         log.info("Setting up mock tests for Identity Resolution Service");
     }
 
+    // ------------------------------------------------------------------
+    // Helper
+    // ------------------------------------------------------------------
+
+    private CanonicalIdentity canonical(String sourceSystem) {
+        CanonicalIdentity c = new CanonicalIdentity();
+        c.setSourceSystem(sourceSystem);
+        c.setSourceId("SRC-001");
+        return c;
+    }
+
+    private IdentityMatchResponse tier1Response(String goldenId) {
+        IdentityMatchResponse r = new IdentityMatchResponse();
+        r.setMatched(true);
+        r.setMatchTier(MatchTierConstant.TIER_1);
+        r.setConfidenceScore(1.0);
+        r.setGoldenId(goldenId);
+        r.setStatus("MATCHED");
+        return r;
+    }
+
+    private IdentityMatchResponse tier2Response(String goldenId, double score) {
+        IdentityMatchResponse r = new IdentityMatchResponse();
+        r.setMatched(true);
+        r.setMatchTier(MatchTierConstant.TIER_2);
+        r.setConfidenceScore(score);
+        r.setGoldenId(goldenId);
+        r.setStatus("MATCHED");
+        return r;
+    }
+
+    private IdentityMatchResponse noMatchResponse(double score) {
+        IdentityMatchResponse r = new IdentityMatchResponse();
+        r.setMatched(false);
+        r.setMatchTier(MatchTierConstant.TIER_3);
+        r.setConfidenceScore(score);
+        r.setStatus("REVIEW_REQUIRED");
+        return r;
+    }
+
+    // ------------------------------------------------------------------
+    // Tests
+    // ------------------------------------------------------------------
+
     /**
      * Test TIER-1: Exact match on HKID (100% confidence)
      */
@@ -55,148 +120,121 @@ public class IdentityResolutionServiceMockTest {
     public void testTier1HkidExactMatch() {
         log.info("Test: TIER-1 HKID exact match");
 
-        // Arrange
-        IdentityMatchRequest request = new IdentityMatchRequest();
-        request.setHkid("A123456789");
-        request.setSource("ADMS");
+        CanonicalIdentity canonical = canonical("ADMS");
+        canonical.setHkid("A123456789");
 
-        IdentityDAO mockIdentity = new IdentityDAO();
-        mockIdentity.setId(1L);
-        mockIdentity.setHkid("A123456789");
-        mockIdentity.setEmail("john@example.com");
-        mockIdentity.setName("John Doe");
+        when(matchingEngineService.match(any(CanonicalIdentity.class)))
+            .thenReturn(tier1Response("GOLDEN-001"));
 
-        when(identityRepository.findByHkid("A123456789"))
-            .thenReturn(mockIdentity);
+        IdentityMatchResponse response = identityResolutionService.resolve(canonical);
 
-        // Act
-        IdentityMatchResponse response = identityResolutionService.resolveIdentity(request);
-
-        // Assert
         assertNotNull(response, "Response should not be null");
-        assertEquals(1.0, response.getConfidence(), "Confidence should be 100%");
-        assertEquals("TIER_1_MATCH", response.getMatchTier(), "Match tier should be TIER_1");
-        assertTrue(response.isAutoMergeEligible(), "Should be eligible for auto-merge");
-        assertEquals(1L, response.getIdentityId(), "Identity ID should match");
+        assertTrue(response.isMatched(), "Should be matched");
+        assertEquals(MatchTierConstant.TIER_1, response.getMatchTier(), "Match tier should be TIER_1");
+        assertEquals(1.0, response.getConfidenceScore(), "Confidence should be 100%");
+        assertEquals("GOLDEN-001", response.getGoldenId(), "Golden ID should match");
 
-        log.info("✅ TIER-1 HKID test PASSED");
+        log.info("TIER-1 HKID test PASSED");
     }
 
     /**
-     * Test TIER-2: 95% confidence - Email + Mobile match
+     * Test TIER-2: High-confidence probabilistic match
      */
     @Test
-    @DisplayName("TIER-2: 95% Confidence - Email + Mobile Match")
-    public void testTier2EmailMobileMatch() {
-        log.info("Test: TIER-2 Email + Mobile match (95%)");
+    @DisplayName("TIER-2: 95% Confidence - Email + Phone Match")
+    public void testTier2EmailPhoneMatch() {
+        log.info("Test: TIER-2 Email + Phone match (95%)");
 
-        IdentityMatchRequest request = new IdentityMatchRequest();
-        request.setEmail("john@example.com");
-        request.setMobile("98765432");
-        request.setSource("EVENT_SYSTEM");
+        CanonicalIdentity canonical = canonical("EVENT_SYSTEM");
+        canonical.setEmail("john@example.com");
+        canonical.setPhone("98765432");
 
-        IdentityDAO mockIdentity = new IdentityDAO();
-        mockIdentity.setId(2L);
-        mockIdentity.setEmail("john@example.com");
-        mockIdentity.setMobile("98765432");
+        when(matchingEngineService.match(any(CanonicalIdentity.class)))
+            .thenReturn(tier2Response("GOLDEN-002", 0.95));
 
-        when(matchingEngineService.performProbabilisticMatch(request))
-            .thenReturn(new MatchingEngineService.MatchResult(
-                "TIER_2_EMAIL_MOBILE", 0.95, mockIdentity));
-
-        IdentityMatchResponse response = identityResolutionService.resolveIdentity(request);
+        IdentityMatchResponse response = identityResolutionService.resolve(canonical);
 
         assertNotNull(response);
-        assertEquals(0.95, response.getConfidence(), "Confidence should be 95%");
-        assertEquals("TIER_2_MATCH", response.getMatchTier());
-        assertTrue(response.isAutoMergeEligible(), "95% should be auto-merge eligible");
+        assertTrue(response.isMatched());
+        assertEquals(MatchTierConstant.TIER_2, response.getMatchTier());
+        assertEquals(0.95, response.getConfidenceScore(), 0.001);
 
-        log.info("✅ TIER-2 Email + Mobile test PASSED");
+        log.info("TIER-2 Email + Phone test PASSED");
     }
 
     /**
-     * Test TIER-2: 90% confidence - Email + Name match
+     * Test TIER-2: Email + Name match (90% score)
      */
     @Test
     @DisplayName("TIER-2: 90% Confidence - Email + Name Match")
     public void testTier2EmailNameMatch() {
         log.info("Test: TIER-2 Email + Name match (90%)");
 
-        IdentityMatchRequest request = new IdentityMatchRequest();
-        request.setEmail("john@example.com");
-        request.setName("John Doe");
-        request.setSource("EVENT_SYSTEM");
+        CanonicalIdentity canonical = canonical("EVENT_SYSTEM");
+        canonical.setEmail("john@example.com");
+        canonical.setFirstName("John");
+        canonical.setLastName("Doe");
 
-        IdentityDAO mockIdentity = new IdentityDAO();
-        mockIdentity.setId(3L);
-        mockIdentity.setEmail("john@example.com");
-        mockIdentity.setName("John Doe");
+        when(matchingEngineService.match(any(CanonicalIdentity.class)))
+            .thenReturn(tier2Response("GOLDEN-003", 0.90));
 
-        when(matchingEngineService.performProbabilisticMatch(request))
-            .thenReturn(new MatchingEngineService.MatchResult(
-                "TIER_2_EMAIL_NAME", 0.90, mockIdentity));
+        IdentityMatchResponse response = identityResolutionService.resolve(canonical);
 
-        IdentityMatchResponse response = identityResolutionService.resolveIdentity(request);
+        assertTrue(response.isMatched());
+        assertEquals(0.90, response.getConfidenceScore(), 0.001);
 
-        assertEquals(0.90, response.getConfidence());
-        assertTrue(response.isAutoMergeEligible());
-
-        log.info("✅ TIER-2 Email + Name test PASSED");
+        log.info("TIER-2 Email + Name test PASSED");
     }
 
     /**
-     * Test TIER-3: Source Credibility Impact - 90% × 0.8x = 72%
+     * Test TIER-3: Low confidence - routes to manual review
      */
     @Test
-    @DisplayName("TIER-3: Source Credibility Impact - 90% × 0.8x = 72%")
-    public void testTier3SourceCredibilityImpact() {
-        log.info("Test: TIER-3 Source credibility impact (72%)");
+    @DisplayName("TIER-3: Low Confidence - Routes to Manual Review")
+    public void testTier3RoutesToManualReview() {
+        log.info("Test: TIER-3 low confidence routing");
 
-        IdentityMatchRequest request = new IdentityMatchRequest();
-        request.setEmail("user@example.com");
-        request.setName("User Doe");
-        request.setSource("GOOGLE_FORMS");  // Low trust: 0.8x
+        CanonicalIdentity canonical = canonical("THIRD_PARTY");
+        canonical.setEmail("user@example.com");
+        canonical.setFirstName("User");
 
-        when(matchingEngineService.performProbabilisticMatch(request))
-            .thenReturn(new MatchingEngineService.MatchResult(
-                "TIER_2_EMAIL_NAME", 0.90, null));
+        when(matchingEngineService.match(any(CanonicalIdentity.class)))
+            .thenReturn(noMatchResponse(0.40));
+        // isNewIdentity() calls findByEmail; returning a present Optional makes it return false
+        // so the code takes the routeToManualReview path (not createNewGoldenRecord)
+        when(identityRepository.findByEmail("user@example.com"))
+            .thenReturn(Optional.of(new IdentityDAO()));
 
-        IdentityMatchResponse response = identityResolutionService.resolveIdentity(request);
+        IdentityMatchResponse response = identityResolutionService.resolve(canonical);
 
-        // After credibility multiplier: 90% × 0.8 = 72%
-        double expectedConfidence = 0.90 * 0.80;
-        assertEquals(expectedConfidence, response.getConfidence(), 0.01);
-        assertEquals(0.72, response.getConfidence());
-        
-        assertFalse(response.isAutoMergeEligible());
-        assertEquals("TIER_3_MANUAL_REVIEW", response.getMatchTier());
+        assertNotNull(response);
+        assertFalse(response.isMatched());
+        assertEquals(MatchTierConstant.TIER_3, response.getMatchTier());
 
-        log.info("✅ TIER-3 Source credibility test PASSED (90% × 0.8 = 72%)");
+        log.info("TIER-3 manual review routing test PASSED");
     }
 
     /**
-     * Test: No Match Found
+     * Test: No Match Found - new identity path
      */
     @Test
-    @DisplayName("No Match Found - Create New Identity")
+    @DisplayName("No Match Found - New Identity Created")
     public void testNoMatchCreateNew() {
-        log.info("Test: No match found - create new");
+        log.info("Test: No match found - new identity");
 
-        IdentityMatchRequest request = new IdentityMatchRequest();
-        request.setEmail("newuser@example.com");
-        request.setName("New User");
-        request.setSource("GOOGLE_FORMS");
+        CanonicalIdentity canonical = canonical("THIRD_PARTY");
+        canonical.setEmail("newuser@example.com");
+        canonical.setFirstName("New");
+        canonical.setLastName("User");
 
-        when(matchingEngineService.performProbabilisticMatch(request))
-            .thenReturn(new MatchingEngineService.MatchResult(
-                "NO_MATCH", 0.0, null));
+        IdentityMatchResponse noMatch = noMatchResponse(0.0);
+        when(matchingEngineService.match(any(CanonicalIdentity.class))).thenReturn(noMatch);
 
-        IdentityMatchResponse response = identityResolutionService.resolveIdentity(request);
+        IdentityMatchResponse response = identityResolutionService.resolve(canonical);
 
-        assertEquals(0.0, response.getConfidence());
-        assertFalse(response.isAutoMergeEligible());
-        assertNull(response.getIdentityId());
+        assertNotNull(response);
+        assertFalse(response.isMatched());
 
-        log.info("✅ No match test PASSED");
+        log.info("No match test PASSED");
     }
 }
