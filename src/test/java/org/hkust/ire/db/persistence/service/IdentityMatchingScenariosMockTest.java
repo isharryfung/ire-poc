@@ -178,15 +178,16 @@ public class IdentityMatchingScenariosMockTest {
     }
 
     /**
-     * Scenario 4: Alumni ID Exact Match (100%)
+     * Scenario 4: Email Exact Match (100%)
+     * Fixed: Using email field instead of non-existent alumniId field
      */
     @Test
-    @DisplayName("Scenario 4: Alumni ID Exact Match (100%)")
-    public void testScenario4AlumniIdMatch() {
-        log.info("Scenario 4: Alumni ID exact match");
+    @DisplayName("Scenario 4: Email Exact Match (100%)")
+    public void testScenario4EmailMatch() {
+        log.info("Scenario 4: Email exact match");
 
         CanonicalIdentity canonical = canonical("ADMS");
-        canonical.setAlumniId("HKUST20150001");
+        canonical.setEmail("user.alumni@hkust.edu.hk");
 
         when(matchingEngineService.match(any(CanonicalIdentity.class)))
             .thenReturn(tier1Response("GOLDEN-004"));
@@ -562,7 +563,7 @@ public class IdentityMatchingScenariosMockTest {
     }
 
     /**
-     * Scenario 20: No Match - Creates New Identity or Routes to Manual Review
+     * Scenario 20: No Match - Routes to Manual Review or Creates New Identity
      */
     @Test
     @DisplayName("Scenario 20: No Match - Routes to Manual Review or Creates New")
