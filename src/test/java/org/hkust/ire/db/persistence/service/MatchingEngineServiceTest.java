@@ -5,15 +5,15 @@ import org.hkust.ire.db.persistence.repository.IdentityRepository;
 import org.hkust.ire.db.persistence.service.matching.MatchingEngineService;
 import org.hkust.ire.dto.CanonicalIdentity;
 import org.hkust.ire.dto.IdentityMatchResponse;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.transaction.annotation.Transactional;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for MatchingEngineService - verifies TIER-1/TIER-2/TIER-3 matching logic.
@@ -21,7 +21,7 @@ import static org.junit.Assert.*;
  * @author ire-team
  * @since 1.0.0
  */
-@RunWith(SpringRunner.class)
+@ExtendWith(SpringExtension.class)
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
