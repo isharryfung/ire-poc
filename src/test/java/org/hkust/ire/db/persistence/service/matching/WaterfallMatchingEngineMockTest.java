@@ -14,9 +14,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import org.hkust.ire.common.constant.MatchTierConstant;
 import org.hkust.ire.db.persistence.domain.IdentityDAO;
@@ -33,6 +36,7 @@ import org.hkust.ire.dto.IdentityMatchResponse;
  * @since 2026-05-13
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("Waterfall Matching Engine - Mock Tests")
 public class WaterfallMatchingEngineMockTest {
 
@@ -50,6 +54,7 @@ public class WaterfallMatchingEngineMockTest {
     @BeforeEach
     public void setUp() {
         log.info("Setting up Waterfall Matching Engine tests");
+        ReflectionTestUtils.setField(engine, "tier2CandidateLimit", 500);
     }
 
     // ------------------------------------------------------------------
