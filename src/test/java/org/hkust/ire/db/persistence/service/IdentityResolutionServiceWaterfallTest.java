@@ -157,13 +157,13 @@ public class IdentityResolutionServiceWaterfallTest {
         assertEquals("GID-T2-HIGH", response.getGoldenId());
     }
 
-    /** Verifies cascade path where deterministic tier misses and Tier-2 mid score still matches. */
+    /** Verifies cascade path where deterministic tier misses and Tier-2 score above auto-merge threshold matches. */
     @Test
     public void testWaterfallCascadeTier1FailTier2MidConfidence() {
         stubTier1Misses();
         IdentityDAO candidate = identity("GID-T2-MID", "mid@ust.hk");
         when(identityRepository.findByStatus(eq("ACTIVE"), any())).thenReturn(new PageImpl<>(Collections.singletonList(candidate)));
-        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.75);
+        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.88);
 
         CanonicalIdentity canonical = canonical("EVENT_SYSTEM");
         canonical.setEmail("mid@ust.hk");
@@ -172,7 +172,7 @@ public class IdentityResolutionServiceWaterfallTest {
 
         assertTrue(response.isMatched());
         assertEquals(MatchTierConstant.TIER_2, response.getMatchTier());
-        assertEquals(0.75, response.getConfidenceScore(), 0.0001);
+        assertEquals(0.88, response.getConfidenceScore(), 0.0001);
     }
 
     /** Verifies full cascade miss routes to review queue when identity is not new. */
@@ -217,9 +217,9 @@ public class IdentityResolutionServiceWaterfallTest {
         stubTier1Misses();
         IdentityDAO candidate = identity("GID-CRED", "cred@ust.hk");
         when(identityRepository.findByStatus(eq("ACTIVE"), any())).thenReturn(new PageImpl<>(Collections.singletonList(candidate)));
-        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.80);
+        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.90);
         when(sourceCredibilityScorer.score("ADMS")).thenReturn(0.9);
-        when(sourceCredibilityScorer.score("THIRD_PARTY")).thenReturn(0.7);
+        when(sourceCredibilityScorer.score("THIRD_PARTY")).thenReturn(0.8);
 
         CanonicalIdentity adms = canonical("ADMS");
         adms.setEmail("cred@ust.hk");
@@ -229,8 +229,8 @@ public class IdentityResolutionServiceWaterfallTest {
         IdentityMatchResponse admsResponse = identityResolutionService.resolve(adms);
         IdentityMatchResponse thirdPartyResponse = identityResolutionService.resolve(thirdParty);
 
-        assertEquals(0.72, admsResponse.getConfidenceScore(), 0.0001);
-        assertEquals(0.56, thirdPartyResponse.getConfidenceScore(), 0.0001);
+        assertEquals(0.81, admsResponse.getConfidenceScore(), 0.0001);
+        assertEquals(0.72, thirdPartyResponse.getConfidenceScore(), 0.0001);
         assertTrue(admsResponse.getConfidenceScore() > thirdPartyResponse.getConfidenceScore());
     }
 
@@ -251,21 +251,21 @@ public class IdentityResolutionServiceWaterfallTest {
         assertEquals(0.81, response.getConfidenceScore(), 0.0001);
     }
 
-    /** Verifies third-party source multiplier (0.7x) is applied to base confidence. */
+    /** Verifies third-party source multiplier (0.8x) is applied to base confidence. */
     @Test
     public void testSourceCredibilityMultiplierThirdPartyApplied() {
         stubTier1Misses();
         IdentityDAO candidate = identity("GID-3P", "third@ust.hk");
         when(identityRepository.findByStatus(eq("ACTIVE"), any())).thenReturn(new PageImpl<>(Collections.singletonList(candidate)));
         when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.90);
-        when(sourceCredibilityScorer.score("THIRD_PARTY")).thenReturn(0.7);
+        when(sourceCredibilityScorer.score("THIRD_PARTY")).thenReturn(0.8);
 
         CanonicalIdentity canonical = canonical("THIRD_PARTY");
         canonical.setEmail("third@ust.hk");
 
         IdentityMatchResponse response = identityResolutionService.resolve(canonical);
 
-        assertEquals(0.63, response.getConfidenceScore(), 0.0001);
+        assertEquals(0.72, response.getConfidenceScore(), 0.0001);
     }
 
     /** Verifies low adjusted confidence can route to manual review when matching result is Tier-3. */
@@ -275,7 +275,7 @@ public class IdentityResolutionServiceWaterfallTest {
         IdentityDAO candidate = identity("GID-LOW-CRED", "candidate@ust.hk");
         when(identityRepository.findByStatus(eq("ACTIVE"), any())).thenReturn(new PageImpl<>(Collections.singletonList(candidate)));
         when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.40);
-        when(sourceCredibilityScorer.score("THIRD_PARTY")).thenReturn(0.7);
+        when(sourceCredibilityScorer.score("THIRD_PARTY")).thenReturn(0.8);
 
         CanonicalIdentity canonical = canonical("THIRD_PARTY");
         canonical.setFirstName("Low");
@@ -310,7 +310,7 @@ public class IdentityResolutionServiceWaterfallTest {
     public void testEdgeCaseEmptyStringsTreatedAsNull() {
         IdentityDAO candidate = identity("GID-EMPTY", "empty@ust.hk");
         when(identityRepository.findByStatus(eq("ACTIVE"), any())).thenReturn(new PageImpl<>(Collections.singletonList(candidate)));
-        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.74);
+        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.86);
 
         CanonicalIdentity canonical = canonical("EVENT_SYSTEM");
         canonical.setHkid("");
@@ -352,7 +352,7 @@ public class IdentityResolutionServiceWaterfallTest {
         stubTier1Misses();
         IdentityDAO candidate = identity("GID-SPACE", "john@example.com");
         when(identityRepository.findByStatus(eq("ACTIVE"), any())).thenReturn(new PageImpl<>(Collections.singletonList(candidate)));
-        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.78);
+        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.88);
 
         CanonicalIdentity canonical = canonical("EVENT_SYSTEM");
         canonical.setEmail("  john@example.com  ");
@@ -360,7 +360,7 @@ public class IdentityResolutionServiceWaterfallTest {
         IdentityMatchResponse response = identityResolutionService.resolve(canonical);
 
         assertTrue(response.isMatched());
-        assertTrue(response.getConfidenceScore() >= 0.70);
+        assertTrue(response.getConfidenceScore() >= MatchTierConstant.AUTO_MERGE_THRESHOLD);
     }
 
     /** Verifies case-insensitive matching behavior in Tier-2 candidate evaluation path. */
@@ -369,7 +369,7 @@ public class IdentityResolutionServiceWaterfallTest {
         stubTier1Misses();
         IdentityDAO candidate = identity("GID-CASE", "john@example.com");
         when(identityRepository.findByStatus(eq("ACTIVE"), any())).thenReturn(new PageImpl<>(Collections.singletonList(candidate)));
-        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.76);
+        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.86);
 
         CanonicalIdentity canonical = canonical("EVENT_SYSTEM");
         canonical.setEmail("JOHN@EXAMPLE.COM");
@@ -380,30 +380,30 @@ public class IdentityResolutionServiceWaterfallTest {
         assertEquals(MatchTierConstant.TIER_2, response.getMatchTier());
     }
 
-    /** Verifies confidence at 95% remains eligible for automatic matched flow. */
+    /** Verifies confidence at 85% remains eligible for automatic matched flow. */
     @Test
-    public void testConfidenceBoundaryExactlyNinetyFivePercent() {
+    public void testConfidenceBoundaryExactlyEightyFivePercent() {
         stubTier1Misses();
-        IdentityDAO candidate = identity("GID-95", "exact95@ust.hk");
+        IdentityDAO candidate = identity("GID-85", "exact85@ust.hk");
         when(identityRepository.findByStatus(eq("ACTIVE"), any())).thenReturn(new PageImpl<>(Collections.singletonList(candidate)));
-        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.95);
+        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.85);
 
         CanonicalIdentity canonical = canonical("CRM");
-        canonical.setEmail("exact95@ust.hk");
+        canonical.setEmail("exact85@ust.hk");
 
         IdentityMatchResponse response = identityResolutionService.resolve(canonical);
 
         assertTrue(response.isMatched());
-        assertEquals(0.95, response.getConfidenceScore(), 0.0001);
+        assertEquals(0.85, response.getConfidenceScore(), 0.0001);
     }
 
-    /** Verifies confidence just below 95% can be routed to review when matching marks Tier-3. */
+    /** Verifies confidence just below 85% can be routed to review when matching marks Tier-3. */
     @Test
-    public void testConfidenceBoundaryJustBelowNinetyFivePercent() {
+    public void testConfidenceBoundaryJustBelowEightyFivePercent() {
         stubTier1Misses();
-        IdentityDAO candidate = identity("GID-949", "candidate@ust.hk");
+        IdentityDAO candidate = identity("GID-849", "candidate@ust.hk");
         when(identityRepository.findByStatus(eq("ACTIVE"), any())).thenReturn(new PageImpl<>(Collections.singletonList(candidate)));
-        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.69);
+        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.84);
 
         CanonicalIdentity canonical = canonical("EVENT_SYSTEM");
         canonical.setFirstName("Below");

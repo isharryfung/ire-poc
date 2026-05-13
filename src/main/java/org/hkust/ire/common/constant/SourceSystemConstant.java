@@ -33,8 +33,8 @@ public final class SourceSystemConstant {
     /** ADMS/Attendance credibility weight - 90% trusted */
     public static final double CREDIBILITY_ADMS = 0.9;
 
-    /** Third-party credibility weight - 70% trusted */
-    public static final double CREDIBILITY_THIRD_PARTY = 0.7;
+    /** Third-party credibility weight - 80% trusted */
+    public static final double CREDIBILITY_THIRD_PARTY = 0.8;
 
     private SourceSystemConstant() {
     }

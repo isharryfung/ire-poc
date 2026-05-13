@@ -144,7 +144,7 @@ public class WaterfallMatchingEngine {
             response.setConfidenceScore(bestScore);
             response.setMatchTier(MatchTierConstant.TIER_2);
 
-            if (bestMatch != null && bestScore >= MatchTierConstant.TIER_2_THRESHOLD) {
+            if (bestMatch != null && bestScore >= MatchTierConstant.AUTO_MERGE_THRESHOLD) {
                 response.setGoldenId(bestMatch.getGoldenId());
                 response.setMatched(true);
                 response.setStatus("MATCHED");
