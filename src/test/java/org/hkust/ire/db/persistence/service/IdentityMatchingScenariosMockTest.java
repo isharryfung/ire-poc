@@ -442,6 +442,7 @@ public class IdentityMatchingScenariosMockTest {
 
     /**
      * Scenario 15: Name Only - Insufficient Data
+     * Fixed: Remove unnecessary stubbing, only mock what's needed
      */
     @Test
     @DisplayName("Scenario 15: Name Only - Insufficient (0%)")
@@ -452,12 +453,13 @@ public class IdentityMatchingScenariosMockTest {
         canonical.setFirstName("User");
         canonical.setLastName("Doe");
 
+        // Mock only the necessary call - the matching engine returns no match
         when(matchingEngineService.match(any(CanonicalIdentity.class)))
             .thenReturn(noMatchResponse(0.0));
-        when(identityRepository.findByEmail(null)).thenReturn(Optional.empty());
 
         IdentityMatchResponse response = identityResolutionService.resolve(canonical);
 
+        assertNotNull(response.getConfidenceScore(), "Confidence score should not be null");
         assertEquals(0.0, response.getConfidenceScore(), 0.001);
         assertFalse(response.isMatched());
 
@@ -564,6 +566,7 @@ public class IdentityMatchingScenariosMockTest {
 
     /**
      * Scenario 20: No Match - Routes to Manual Review or Creates New Identity
+     * Fixed: Ensure confidenceScore is set in noMatchResponse
      */
     @Test
     @DisplayName("Scenario 20: No Match - Routes to Manual Review or Creates New")
@@ -575,13 +578,19 @@ public class IdentityMatchingScenariosMockTest {
         canonical.setFirstName("Brand");
         canonical.setLastName("New");
 
+        // Mock the matching engine to return no match with confidence score
+        IdentityMatchResponse noMatch = new IdentityMatchResponse();
+        noMatch.setMatched(false);
+        noMatch.setMatchTier(MatchTierConstant.TIER_3);
+        noMatch.setConfidenceScore(0.0);
+        noMatch.setStatus("REVIEW_REQUIRED");
+
         when(matchingEngineService.match(any(CanonicalIdentity.class)))
-            .thenReturn(noMatchResponse(0.0));
-        when(identityRepository.findByEmail("brand.new@example.com"))
-            .thenReturn(Optional.empty());
+            .thenReturn(noMatch);
 
         IdentityMatchResponse response = identityResolutionService.resolve(canonical);
 
+        assertNotNull(response.getConfidenceScore(), "Confidence score should not be null");
         assertEquals(0.0, response.getConfidenceScore(), 0.001);
         assertFalse(response.isMatched());
 
