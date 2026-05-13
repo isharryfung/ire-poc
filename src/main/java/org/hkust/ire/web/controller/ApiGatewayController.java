@@ -57,7 +57,8 @@ public class ApiGatewayController {
             return ResponseEntity.badRequest().body(response);
         } catch (Exception e) {
             log.error("Error processing ingest request: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiGatewayResponse.error(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiGatewayResponse.error("Internal server error"));
         }
     }
 }
