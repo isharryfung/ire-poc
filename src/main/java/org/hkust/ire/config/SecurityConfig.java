@@ -57,6 +57,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Override
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        validateCredentialConfiguration();
+
         auth.inMemoryAuthentication()
                 .passwordEncoder(passwordEncoder())
                 .withUser(apiUserName)
@@ -87,6 +89,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             .authorizeRequests()
                 .antMatchers("/api/v1/health").permitAll()
                 .antMatchers("/actuator/health").permitAll()
+                .antMatchers("/api/v1/reviews/**").hasAnyRole("ADMIN", "REVIEWER")
                 .antMatchers("/api/v1/**").hasRole("API_USER")
                 .antMatchers("/admin/**").hasRole("ADMIN")
                 .antMatchers("/review/**").hasAnyRole("ADMIN", "REVIEWER")
@@ -104,5 +107,18 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             // CSRF: disabled for REST /api/** endpoints, enabled for JSP form submissions
             .csrf()
                 .ignoringAntMatchers("/api/v1/**");
+    }
+
+    private void validateCredentialConfiguration() {
+        if (disableAuth) {
+            return;
+        }
+        if (isBlank(apiUserPassword) || isBlank(adminPassword) || isBlank(reviewerPassword)) {
+            throw new IllegalStateException("Security credentials must be configured when authentication is enabled");
+        }
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 }
