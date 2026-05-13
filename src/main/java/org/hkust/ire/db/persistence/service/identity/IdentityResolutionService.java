@@ -79,44 +79,58 @@ public class IdentityResolutionService {
         long start = System.currentTimeMillis();
         log.info("Resolving identity for sourceSystem={}", canonical.getSourceSystem());
 
-        IdentityMatchResponse matchResponse = matchingEngineService.match(canonical);
+        try {
+            IdentityMatchResponse matchResponse = matchingEngineService.match(canonical);
 
-        if (matchResponse.isMatched()) {
-            linkSourceToGolden(canonical, matchResponse.getGoldenId(), matchResponse.getMatchTier());
-            
-            // Cache eviction failures should not fail the entire request
+            if (matchResponse.isMatched()) {
+                linkSourceToGolden(canonical, matchResponse.getGoldenId(), matchResponse.getMatchTier());
+                
+                // Cache eviction failures should not fail the entire request
+                try {
+                    identityCacheService.evictIdentity(matchResponse.getGoldenId());
+                } catch (Exception e) {
+                    log.warn("Cache eviction failed for goldenId={}: {}", matchResponse.getGoldenId(), e.getMessage());
+                }
+            } else if (MatchTierConstant.TIER_3.equals(matchResponse.getMatchTier())) {
+                if (isNewIdentity(canonical)) {
+                    IdentityDAO newIdentity = createNewGoldenRecord(canonical);
+                    matchResponse.setGoldenId(newIdentity.getGoldenId());
+                    matchResponse.setMatched(true);
+                    matchResponse.setStatus("NEW_IDENTITY");
+                    log.info("Created new golden record: {}", newIdentity.getGoldenId());
+                } else {
+                    routeToManualReview(canonical, matchResponse.getConfidenceScore());
+                    matchResponse.setStatus("REVIEW_QUEUED");
+                    log.info("Routed to manual review for sourceSystem={}", canonical.getSourceSystem());
+                }
+            }
+
+            // Audit logging - record the resolution attempt
             try {
-                identityCacheService.evictIdentity(matchResponse.getGoldenId());
+                AuditLogDAO audit = new AuditLogDAO("IDENTITY_RESOLVED", "IDENTITY",
+                        matchResponse.getGoldenId());
+                audit.setSourceSystem(canonical.getSourceSystem());
+                audit.setDetails("tier=" + matchResponse.getMatchTier()
+                        + ", score=" + matchResponse.getConfidenceScore()
+                        + ", elapsed=" + (System.currentTimeMillis() - start) + "ms");
+                auditLogRepository.save(audit);
             } catch (Exception e) {
-                log.warn("Cache eviction failed for goldenId={}: {}", matchResponse.getGoldenId(), e.getMessage());
+                log.warn("Audit logging failed (non-fatal): {}", e.getMessage());
+                // Don't rethrow - audit logging failure should not fail the entire request
             }
-        } else if (MatchTierConstant.TIER_3.equals(matchResponse.getMatchTier())) {
-            if (isNewIdentity(canonical)) {
-                IdentityDAO newIdentity = createNewGoldenRecord(canonical);
-                matchResponse.setGoldenId(newIdentity.getGoldenId());
-                matchResponse.setMatched(true);
-                matchResponse.setStatus("NEW_IDENTITY");
-                log.info("Created new golden record: {}", newIdentity.getGoldenId());
-            } else {
-                routeToManualReview(canonical, matchResponse.getConfidenceScore());
-                matchResponse.setStatus("REVIEW_QUEUED");
-                log.info("Routed to manual review for sourceSystem={}", canonical.getSourceSystem());
-            }
+
+            log.debug("Identity resolution completed for sourceSystem={}, tier={}, score={}",
+                    canonical.getSourceSystem(), matchResponse.getMatchTier(), matchResponse.getConfidenceScore());
+
+            return matchResponse;
+        } catch (Exception e) {
+            log.error("Unhandled error in identity resolution: {}", e.getMessage(), e);
+            IdentityMatchResponse error = new IdentityMatchResponse();
+            error.setMatched(false);
+            error.setStatus("ERROR");
+            error.setMessage(e.getMessage());
+            return error;
         }
-
-        // Audit logging - record the resolution attempt
-        AuditLogDAO audit = new AuditLogDAO("IDENTITY_RESOLVED", "IDENTITY",
-                matchResponse.getGoldenId());
-        audit.setSourceSystem(canonical.getSourceSystem());
-        audit.setDetails("tier=" + matchResponse.getMatchTier()
-                + ", score=" + matchResponse.getConfidenceScore()
-                + ", elapsed=" + (System.currentTimeMillis() - start) + "ms");
-        auditLogRepository.save(audit);
-
-        log.debug("Identity resolution completed for sourceSystem={}, tier={}, score={}",
-                canonical.getSourceSystem(), matchResponse.getMatchTier(), matchResponse.getConfidenceScore());
-
-        return matchResponse;
     }
 
     /**
