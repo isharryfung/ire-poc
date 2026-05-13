@@ -3,7 +3,6 @@ package org.hkust.ire.db.persistence.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
@@ -490,6 +489,7 @@ public class IdentityResolutionServiceWaterfallTest {
 
         assertFalse(response.isMatched());
         assertEquals("REVIEW_QUEUED", response.getStatus());
+        assertEquals(0.45, response.getConfidenceScore(), 0.0001);
         verify(manualReviewService).createReview(anyString(), eq("EVENT_SYSTEM"), eq(0.45), eq(null));
     }
 
@@ -508,6 +508,6 @@ public class IdentityResolutionServiceWaterfallTest {
         IdentityMatchResponse response = identityResolutionService.resolve(canonical);
 
         assertEquals("REVIEW_QUEUED", response.getStatus());
-        assertNull(response.getReviewId());
+        verify(manualReviewService).createReview(anyString(), eq("GOOGLE_FORMS"), eq(0.35), eq(null));
     }
 }
