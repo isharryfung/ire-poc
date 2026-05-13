@@ -89,7 +89,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             .authorizeRequests()
                 .antMatchers("/api/v1/health").permitAll()
                 .antMatchers("/actuator/health").permitAll()
-                // Keep this matcher before /api/v1/** to enforce stricter review permissions.
+                // Keep this matcher before /api/v1/**; reversing order would allow API_USER to approve/reject reviews.
                 .antMatchers("/api/v1/reviews/**").hasAnyRole("ADMIN", "REVIEWER")
                 .antMatchers("/api/v1/**").hasRole("API_USER")
                 .antMatchers("/admin/**").hasRole("ADMIN")
