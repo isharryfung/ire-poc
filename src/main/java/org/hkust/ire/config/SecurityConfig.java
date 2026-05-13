@@ -42,6 +42,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     @Value("${ire.security.reviewer.password:}")
     private String reviewerPassword;
 
+    @Value("${ire.security.disable-auth:false}")
+    private boolean disableAuth;
+
     /**
      * Password encoder - BCrypt.
      *
@@ -71,6 +74,15 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
+        if (disableAuth) {
+            http
+                .authorizeRequests()
+                    .anyRequest().permitAll()
+                .and()
+                .csrf().disable();
+            return;
+        }
+
         http
             .authorizeRequests()
                 .antMatchers("/api/v1/health").permitAll()
