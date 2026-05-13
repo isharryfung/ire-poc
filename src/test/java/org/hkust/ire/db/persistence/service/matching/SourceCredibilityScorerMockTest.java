@@ -137,7 +137,7 @@ public class SourceCredibilityScorerMockTest {
 
         assertEquals(SourceSystemConstant.CREDIBILITY_THIRD_PARTY, multiplier, 0.001);
         assertTrue(finalScore < MatchTierConstant.AUTO_MERGE_THRESHOLD,
-                "Should NOT be auto-mergeable");
+                "Should NOT be auto-mergeable; final score=" + finalScore);
 
         log.info("Real-world Google Forms test PASSED");
     }

@@ -139,7 +139,7 @@ public class WaterfallMatchingEngineMockTest {
         assertTrue(response.isMatched());
         assertEquals(MatchTierConstant.TIER_2, response.getMatchTier());
         assertTrue(response.getConfidenceScore() >= MatchTierConstant.AUTO_MERGE_THRESHOLD,
-                "Score should exceed AUTO_MERGE_THRESHOLD");
+                "Score should meet or exceed AUTO_MERGE_THRESHOLD");
 
         log.info("TIER-2 match test PASSED (score={})", response.getConfidenceScore());
     }

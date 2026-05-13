@@ -157,7 +157,7 @@ public class IdentityResolutionServiceWaterfallTest {
         assertEquals("GID-T2-HIGH", response.getGoldenId());
     }
 
-    /** Verifies cascade path where deterministic tier misses and Tier-2 score above auto-merge threshold matches. */
+    /** Verifies cascade path where deterministic tier misses and TIER_2 score at or above auto-merge threshold results in automatic match. */
     @Test
     public void testWaterfallCascadeTier1FailTier2MidConfidence() {
         stubTier1Misses();
@@ -191,7 +191,7 @@ public class IdentityResolutionServiceWaterfallTest {
 
         assertFalse(response.isMatched());
         assertEquals(MatchTierConstant.TIER_3, response.getMatchTier());
-        assertEquals("REVIEW_QUEUED", response.getStatus());
+        assertEquals("REVIEW_QUEUED", response.getStatus(), "Should route to manual review below auto-merge threshold");
         verify(manualReviewService, times(1)).createReview(anyString(), eq("THIRD_PARTY"), eq(0.20), eq(null));
     }
 
@@ -360,7 +360,8 @@ public class IdentityResolutionServiceWaterfallTest {
         IdentityMatchResponse response = identityResolutionService.resolve(canonical);
 
         assertTrue(response.isMatched());
-        assertTrue(response.getConfidenceScore() >= MatchTierConstant.AUTO_MERGE_THRESHOLD);
+        assertTrue(response.getConfidenceScore() >= MatchTierConstant.AUTO_MERGE_THRESHOLD,
+                "Score should meet or exceed AUTO_MERGE_THRESHOLD");
     }
 
     /** Verifies case-insensitive matching behavior in Tier-2 candidate evaluation path. */
@@ -382,7 +383,7 @@ public class IdentityResolutionServiceWaterfallTest {
 
     /** Verifies confidence at 85% remains eligible for automatic matched flow. */
     @Test
-    public void testConfidenceBoundaryExactlyEightyFivePercent() {
+    public void testConfidenceBoundaryAt85Percent() {
         stubTier1Misses();
         IdentityDAO candidate = identity("GID-85", "exact85@ust.hk");
         when(identityRepository.findByStatus(eq("ACTIVE"), any())).thenReturn(new PageImpl<>(Collections.singletonList(candidate)));
@@ -399,7 +400,7 @@ public class IdentityResolutionServiceWaterfallTest {
 
     /** Verifies confidence just below 85% can be routed to review when matching marks Tier-3. */
     @Test
-    public void testConfidenceBoundaryJustBelowEightyFivePercent() {
+    public void testConfidenceBoundaryJustBelow85Percent() {
         stubTier1Misses();
         IdentityDAO candidate = identity("GID-849", "candidate@ust.hk");
         when(identityRepository.findByStatus(eq("ACTIVE"), any())).thenReturn(new PageImpl<>(Collections.singletonList(candidate)));
@@ -413,7 +414,27 @@ public class IdentityResolutionServiceWaterfallTest {
 
         assertFalse(response.isMatched());
         assertEquals(MatchTierConstant.TIER_3, response.getMatchTier());
+        assertEquals("REVIEW_QUEUED", response.getStatus(), "Should route to manual review below auto-merge threshold");
+    }
+
+    /** Verifies confidence at manual-review lower bound still routes to review queue. */
+    @Test
+    public void testConfidenceBoundaryAt50PercentRoutesToManualReview() {
+        stubTier1Misses();
+        IdentityDAO candidate = identity("GID-500", "candidate@ust.hk");
+        when(identityRepository.findByStatus(eq("ACTIVE"), any())).thenReturn(new PageImpl<>(Collections.singletonList(candidate)));
+        when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate))).thenReturn(0.50);
+
+        CanonicalIdentity canonical = canonical("EVENT_SYSTEM");
+        canonical.setFirstName("Boundary");
+        canonical.setLastName("Fifty");
+
+        IdentityMatchResponse response = identityResolutionService.resolve(canonical);
+
+        assertFalse(response.isMatched());
+        assertEquals(MatchTierConstant.TIER_3, response.getMatchTier());
         assertEquals("REVIEW_QUEUED", response.getStatus());
+        assertEquals(0.50, response.getConfidenceScore(), 0.0001);
     }
 
     /** Verifies confidence below 50% supports new-record creation when source identity is new. */

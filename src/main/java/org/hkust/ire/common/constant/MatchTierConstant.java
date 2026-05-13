@@ -21,7 +21,7 @@ public final class MatchTierConstant {
     /** Confidence threshold for automatic merge decision */
     public static final double AUTO_MERGE_THRESHOLD = 0.85;
 
-    /** Lower bound for manual review consideration */
+    /** Lower confidence boundary used for manual-review routing before TIER_3 low-confidence fallback */
     public static final double TIER_2_THRESHOLD = 0.50;
 
     private MatchTierConstant() {
