@@ -4,13 +4,12 @@
 -- Author: IRE Team
 -- Created: 2026-05-13
 -- 
--- CRITICAL: Column names MUST match DAO @Column mappings exactly (case-sensitive)
--- Hibernate will fail to find columns if names don't match!
+-- CRITICAL: Column names and types MUST match DAO @Column/@GeneratedValue mappings
+-- Hibernate and H2 must agree on primary keys, column names, and types
 
 -- ============================================================================
 -- TABLE: identities
 -- Purpose: Golden identity records - single source of truth for each person
--- CRITICAL: Column names must match IdentityDAO @Column annotations
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS identities (
     ID BIGINT IDENTITY PRIMARY KEY,
@@ -47,24 +46,22 @@ CREATE INDEX idx_identities_status ON identities(STATUS);
 -- ============================================================================
 -- TABLE: identity_links
 -- Purpose: Links source system records to golden identities (many-to-one)
+-- NOTE: Uses ID as primary key (IDENTITY), NOT LINK_ID
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS identity_links (
-    LINK_ID VARCHAR(50) PRIMARY KEY,
+    ID BIGINT IDENTITY PRIMARY KEY,
     GOLDEN_ID VARCHAR(50) NOT NULL,
     SOURCE_SYSTEM VARCHAR(50) NOT NULL,
     SOURCE_ID VARCHAR(100) NOT NULL,
-    SOURCE_EMAIL VARCHAR(100),
-    SOURCE_HKID VARCHAR(20),
-    MATCH_CONFIDENCE DOUBLE,
+    CREDIBILITY_SCORE DOUBLE,
     MATCH_TIER VARCHAR(20),
     STATUS VARCHAR(20),
-    CREATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UPDATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CREATED_BY VARCHAR(50),
-    FOREIGN KEY (GOLDEN_ID) REFERENCES identities(GOLDEN_ID) ON DELETE CASCADE,
-    UNIQUE KEY uk_identity_links (SOURCE_SYSTEM, SOURCE_ID)
+    CREATED_DATE TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UPDATED_DATE TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (GOLDEN_ID) REFERENCES identities(GOLDEN_ID) ON DELETE CASCADE
 );
 
+CREATE UNIQUE INDEX uk_identity_links ON identity_links(SOURCE_SYSTEM, SOURCE_ID);
 CREATE INDEX idx_identity_links_golden_id ON identity_links(GOLDEN_ID);
 CREATE INDEX idx_identity_links_source_system ON identity_links(SOURCE_SYSTEM);
 CREATE INDEX idx_identity_links_match_tier ON identity_links(MATCH_TIER);
@@ -86,7 +83,8 @@ CREATE TABLE IF NOT EXISTS source_credibility (
 -- Purpose: Identity records requiring human review (Tier-3 cases)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS manual_reviews (
-    REVIEW_ID VARCHAR(50) PRIMARY KEY,
+    ID BIGINT IDENTITY PRIMARY KEY,
+    REVIEW_ID VARCHAR(50) UNIQUE,
     SOURCE_SYSTEM VARCHAR(50),
     SOURCE_ID VARCHAR(100),
     CANONICAL_IDENTITY_JSON CLOB,
@@ -113,7 +111,8 @@ CREATE INDEX idx_manual_reviews_created_at ON manual_reviews(CREATED_AT);
 -- Purpose: Complete audit trail of all identity operations
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS audit_logs (
-    AUDIT_ID VARCHAR(50) PRIMARY KEY,
+    ID BIGINT IDENTITY PRIMARY KEY,
+    AUDIT_ID VARCHAR(50) UNIQUE,
     ACTION VARCHAR(50),
     ENTITY_TYPE VARCHAR(50),
     ENTITY_ID VARCHAR(100),
@@ -137,7 +136,8 @@ CREATE INDEX idx_audit_logs_source_system ON audit_logs(SOURCE_SYSTEM);
 -- Purpose: Configuration for matching confidence thresholds
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS confidence_thresholds (
-    THRESHOLD_ID VARCHAR(50) PRIMARY KEY,
+    ID BIGINT IDENTITY PRIMARY KEY,
+    THRESHOLD_ID VARCHAR(50) UNIQUE,
     THRESHOLD_TYPE VARCHAR(50),
     THRESHOLD_VALUE DOUBLE,
     DESCRIPTION VARCHAR(200),
@@ -197,9 +197,9 @@ INSERT INTO identities (GOLDEN_ID, HKID, STAFF_ID, EMAIL, FIRST_NAME, LAST_NAME,
 -- ============================================================================
 -- SEED DATA: Sample Identity Links
 -- ============================================================================
-INSERT INTO identity_links (LINK_ID, GOLDEN_ID, SOURCE_SYSTEM, SOURCE_ID, MATCH_CONFIDENCE, MATCH_TIER, CREATED_BY) VALUES
-('LINK-001', 'GID-001', 'ADMS', 'ADMS-20150001', 0.95, 'TIER_1', 'SYSTEM'),
-('LINK-002', 'GID-001', 'CRM', 'CRM-00001', 1.0, 'TIER_1', 'SYSTEM');
+INSERT INTO identity_links (GOLDEN_ID, SOURCE_SYSTEM, SOURCE_ID, MATCH_TIER, STATUS, CREATED_DATE) VALUES
+('GID-001', 'ADMS', 'ADMS-20150001', 'TIER_1', 'ACTIVE', CURRENT_TIMESTAMP),
+('GID-001', 'CRM', 'CRM-00001', 'TIER_1', 'ACTIVE', CURRENT_TIMESTAMP);
 
 -- ============================================================================
 -- VERIFICATION QUERIES
