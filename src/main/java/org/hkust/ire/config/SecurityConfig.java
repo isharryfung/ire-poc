@@ -89,7 +89,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             .authorizeRequests()
                 .antMatchers("/api/v1/health").permitAll()
                 .antMatchers("/actuator/health").permitAll()
-                // Keep this matcher before /api/v1/**; reversing order would allow API_USER to approve/reject reviews.
+                // Spring Security evaluates matchers top-to-bottom; this must precede /api/v1/**.
+                // Reversing order would allow API_USER to approve/reject reviews.
                 .antMatchers("/api/v1/reviews/**").hasAnyRole("ADMIN", "REVIEWER")
                 .antMatchers("/api/v1/**").hasRole("API_USER")
                 .antMatchers("/admin/**").hasRole("ADMIN")
@@ -115,7 +116,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             return;
         }
         if (isBlank(apiUserPassword) || isBlank(adminPassword) || isBlank(reviewerPassword)) {
-            throw new IllegalStateException("Security credentials must be configured when authentication is enabled");
+            throw new IllegalStateException("Missing required credentials when authentication is enabled. "
+                    + "Ensure apiUserPassword, adminPassword, and reviewerPassword are all configured.");
         }
     }
 
