@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * API Gateway service that acts as the unified ingestion point for all source systems.
@@ -42,9 +43,14 @@ public class ApiGatewayService {
      *
      * <p>Pipeline: validate → detect source → parse to canonical → resolve identity</p>
      *
+     * <p><strong>Transaction Context:</strong> Uses @Transactional to create a parent
+     * transaction context. The IdentityResolutionService will create its own REQUIRES_NEW
+     * transaction to isolate the resolution logic.</p>
+     *
      * @param request the API gateway request
      * @return ApiGatewayResponse with resolution result
      */
+    @Transactional
     public ApiGatewayResponse process(ApiGatewayRequest request) {
         log.info("Processing ingest request from sourceSystem={}, requestId={}",
                 request.getSourceSystem(), request.getRequestId());
@@ -78,7 +84,7 @@ public class ApiGatewayService {
             }
 
         } catch (Exception e) {
-            log.error("Error processing ingest request: {}", e.getMessage());
+            log.error("Error processing ingest request: {}", e.getMessage(), e);
             return ApiGatewayResponse.error(e.getMessage());
         }
     }
