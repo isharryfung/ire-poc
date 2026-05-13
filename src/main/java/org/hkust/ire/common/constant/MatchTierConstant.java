@@ -18,8 +18,11 @@ public final class MatchTierConstant {
     /** TIER-3: Insufficient evidence, routes to manual review */
     public static final String TIER_3 = "TIER_3";
 
-    /** Confidence threshold for TIER-2 auto-match */
-    public static final double TIER_2_THRESHOLD = 0.70;
+    /** Confidence threshold for automatic merge decision */
+    public static final double AUTO_MERGE_THRESHOLD = 0.85;
+
+    /** Lower confidence boundary used for manual-review routing before TIER_3 low-confidence fallback */
+    public static final double TIER_2_THRESHOLD = 0.50;
 
     private MatchTierConstant() {
     }

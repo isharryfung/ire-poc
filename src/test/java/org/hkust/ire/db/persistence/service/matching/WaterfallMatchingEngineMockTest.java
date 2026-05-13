@@ -129,7 +129,7 @@ public class WaterfallMatchingEngineMockTest {
         when(identityRepository.findByStatus(eq("ACTIVE"), any()))
             .thenReturn(new PageImpl<>(Collections.singletonList(candidate)));
         when(confidenceCalculator.calculate(any(CanonicalIdentity.class), eq(candidate)))
-            .thenReturn(0.80);
+            .thenReturn(0.90);
 
         CanonicalIdentity request = withEmail("user@example.com");
 
@@ -138,7 +138,8 @@ public class WaterfallMatchingEngineMockTest {
         assertNotNull(response);
         assertTrue(response.isMatched());
         assertEquals(MatchTierConstant.TIER_2, response.getMatchTier());
-        assertTrue(response.getConfidenceScore() >= 0.70, "Score should exceed TIER_2_THRESHOLD");
+        assertTrue(response.getConfidenceScore() >= MatchTierConstant.AUTO_MERGE_THRESHOLD,
+                "Score should meet or exceed AUTO_MERGE_THRESHOLD");
 
         log.info("TIER-2 match test PASSED (score={})", response.getConfidenceScore());
     }

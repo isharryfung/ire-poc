@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 /**
  * Scores the credibility of source systems for use in composite confidence calculation.
  *
- * <p>Credibility weights: CRM=1.0, ADMS/Attendance=0.9, 3rd-party=0.7</p>
+ * <p>Credibility weights: CRM=1.0, ADMS/Attendance=0.9, 3rd-party=0.8</p>
  *
  * @author ire-team
  * @since 1.0.0
