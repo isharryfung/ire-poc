@@ -53,6 +53,9 @@ public class SourceSystemMapper {
     }
 
     private String detectFromPayload(Map<String, Object> payload) {
+        if (payload == null || payload.isEmpty()) {
+            return SourceSystemConstant.THIRD_PARTY;
+        }
         if (payload.containsKey("crmId") || payload.containsKey("crm_id")) {
             return SourceSystemConstant.CRM;
         }

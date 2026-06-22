@@ -1,5 +1,6 @@
 package org.hkust.ire.db.persistence.service.matching;
 
+import org.hkust.ire.common.constant.MatchTierConstant;
 import org.hkust.ire.db.persistence.service.monitoring.PerformanceMonitor;
 import org.hkust.ire.dto.CanonicalIdentity;
 import org.hkust.ire.dto.IdentityMatchResponse;
@@ -43,11 +44,21 @@ public class MatchingEngineService {
             IdentityMatchResponse response = waterfallMatchingEngine.match(canonical);
 
             if (response.getConfidenceScore() != null && response.getConfidenceScore() > 0) {
+                double originalScore = response.getConfidenceScore();
                 double credibility = sourceCredibilityScorer.score(canonical.getSourceSystem());
-                double adjustedScore = response.getConfidenceScore() * credibility;
+                double adjustedScore = originalScore * credibility;
                 response.setConfidenceScore(adjustedScore);
                 log.debug("Applied credibility={} to score: {} -> {}",
-                        credibility, response.getConfidenceScore(), adjustedScore);
+                        credibility, originalScore, adjustedScore);
+
+                if (MatchTierConstant.TIER_2.equals(response.getMatchTier())
+                        && response.isMatched()
+                        && adjustedScore < MatchTierConstant.TIER_2_THRESHOLD) {
+                    response.setMatched(false);
+                    response.setStatus("REVIEW_REQUIRED");
+                    response.setMatchTier(MatchTierConstant.TIER_3);
+                    response.setGoldenId(null);
+                }
             }
 
             long elapsed = System.currentTimeMillis() - startTime;
