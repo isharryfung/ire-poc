@@ -87,6 +87,21 @@ class JsonFileRepository:
     def _load_typed_state(self, path: Path, factory: Callable[[dict[str, Any]], Any]) -> list[Any]:
         return [factory(item) for item in self._read_state_array(path)]
 
+    def _load_typed_jsonl(self, path: Path, factory: Callable[[dict[str, Any]], Any]) -> list[Any]:
+        if not path.exists():
+            return []
+        rows: list[Any] = []
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rows.append(factory(json.loads(line)))
+                except json.JSONDecodeError as exc:
+                    raise RepositoryError(f"corrupted JSONL event file: {path}") from exc
+        return rows
+
     def append_source_record(self, record: SourceRecord) -> None:
         existing = self.find_source_record_by_payload_hash(
             source_system=record.source_system,
@@ -100,21 +115,7 @@ class JsonFileRepository:
         self._append_jsonl(self.source_records_path, record.to_dict())
 
     def load_source_records(self) -> list[SourceRecord]:
-        if not self.source_records_path.exists():
-            return []
-        records: list[SourceRecord] = []
-        with self.source_records_path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    records.append(SourceRecord.from_dict(json.loads(line)))
-                except json.JSONDecodeError as exc:
-                    raise RepositoryError(
-                        f"corrupted JSONL event file: {self.source_records_path}"
-                    ) from exc
-        return records
+        return self._load_typed_jsonl(self.source_records_path, SourceRecord.from_dict)
 
     def find_source_record(self, source_record_id: str) -> SourceRecord | None:
         for record in self.load_source_records():
@@ -159,25 +160,19 @@ class JsonFileRepository:
         self._append_jsonl(self.match_runs_path, run.to_dict())
 
     def load_match_runs(self) -> list[MatchRun]:
-        if not self.match_runs_path.exists():
-            return []
-        runs: list[MatchRun] = []
-        with self.match_runs_path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    runs.append(MatchRun.from_dict(json.loads(line)))
-                except json.JSONDecodeError as exc:
-                    raise RepositoryError(f"corrupted JSONL event file: {self.match_runs_path}") from exc
-        return runs
+        return self._load_typed_jsonl(self.match_runs_path, MatchRun.from_dict)
 
     def find_match_run(self, run_id: str) -> MatchRun | None:
         for run in self.load_match_runs():
             if run.run_id == run_id:
                 return run
         return None
+
+    def load_merge_history_events(self) -> list[MergeHistoryEvent]:
+        return self._load_typed_jsonl(self.merge_history_path, MergeHistoryEvent.from_dict)
+
+    def load_audit_events(self) -> list[AuditEvent]:
+        return self._load_typed_jsonl(self.audit_log_path, AuditEvent.from_dict)
 
     def load_manual_review_tasks(self) -> list[ManualReviewTask]:
         return self._load_typed_state(self.review_tasks_path, ManualReviewTask.from_dict)

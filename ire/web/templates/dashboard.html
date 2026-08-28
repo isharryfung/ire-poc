@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · IRE Demo{% endblock %}
+{% block content %}
+<h1 class="mb-4">Phase 1.1 Demo Dashboard</h1>
+<div class="row g-3 mb-4">
+  {% for key, value in snapshot.metrics.items() %}
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted text-uppercase small">{{ key.replace('_', ' ') }}</div>
+        <div class="display-6">{{ value }}</div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+<div class="mb-4 d-flex gap-2 flex-wrap">
+  <a class="btn btn-primary" href="/identities/new">Submit Identity</a>
+  <a class="btn btn-outline-primary" href="/identities/batch">Upload Batch</a>
+  <a class="btn btn-outline-secondary" href="/reviews">Open Review Queue</a>
+  <a class="btn btn-outline-secondary" href="/golden-records">Browse Golden Records</a>
+</div>
+<div class="row g-4">
+  <div class="col-lg-6">
+    <h2 class="h4">Recent Match Decisions</h2>
+    {% if snapshot.recent_match_decisions %}
+    <table class="table table-sm table-striped">
+      <thead><tr><th>Decision</th><th>Source</th><th>Confidence</th><th>Golden</th></tr></thead>
+      <tbody>
+        {% for item in snapshot.recent_match_decisions %}
+        <tr><td>{{ item.decision }}</td><td>{{ item.source_system }} / {{ item.source_pk }}</td><td>{{ '%.2f'|format(item.confidence) }}</td><td>{{ item.golden_record_id or '—' }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="text-muted">No match decisions yet.</p>{% endif %}
+  </div>
+  <div class="col-lg-6">
+    <h2 class="h4">Recent Merge History</h2>
+    {% if snapshot.recent_merge_history %}
+    <table class="table table-sm table-striped">
+      <thead><tr><th>Event</th><th>Winner</th><th>Reason</th></tr></thead>
+      <tbody>
+        {% for item in snapshot.recent_merge_history %}
+        <tr><td>{{ item.event_type }}</td><td>{{ item.winner_golden_record_id }}</td><td>{{ item.reason }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="text-muted">No merge history yet.</p>{% endif %}
+  </div>
+  <div class="col-lg-6">
+    <h2 class="h4">Decision Distribution</h2>
+    {% if snapshot.decision_distribution %}
+    <ul class="list-group">
+      {% for item in snapshot.decision_distribution %}
+      <li class="list-group-item d-flex justify-content-between"><span>{{ item.decision }}</span><span>{{ item.count }}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="text-muted">No decision data yet.</p>{% endif %}
+  </div>
+  <div class="col-lg-6">
+    <h2 class="h4">Source System Distribution</h2>
+    {% if snapshot.source_system_distribution %}
+    <ul class="list-group">
+      {% for item in snapshot.source_system_distribution %}
+      <li class="list-group-item d-flex justify-content-between"><span>{{ item.source_system }}</span><span>{{ item.count }}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="text-muted">No source records yet.</p>{% endif %}
+  </div>
+</div>
+{% endblock %}

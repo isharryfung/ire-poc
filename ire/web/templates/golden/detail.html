@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ golden.golden_record_id }} · IRE Demo{% endblock %}
+{% block content %}
+<h1 class="mb-4">Golden Record {{ golden.golden_record_id }}</h1>
+<ul>
+  <li>Status: {{ golden.status }}</li>
+  <li>Version: {{ golden.version }}</li>
+  <li>Created: {{ golden.created_at }}</li>
+  <li>Updated: {{ golden.updated_at }}</li>
+  <li>Superseded by: {{ golden.superseded_by or '—' }}</li>
+</ul>
+<div class="row g-4">
+  <div class="col-lg-6">
+    <h2 class="h4">Primary Values</h2>
+    <ul class="list-group">
+      {% for field_name, value in golden.primary_values.items() %}
+      <li class="list-group-item"><strong>{{ field_name }}</strong>: {{ value.raw_value }}{% if value.manual_lock %} (manual lock){% endif %}{% if value.is_verified %} (verified){% endif %}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="col-lg-6">
+    <h2 class="h4">Active Record Links</h2>
+    {% if golden.active_record_links %}
+    <ul class="list-group">
+      {% for link in golden.active_record_links %}
+      <li class="list-group-item">{{ link.source_record_id }} · {{ link.status }} · {{ '%.2f'|format(link.confidence) }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="text-muted">No active links.</p>{% endif %}
+  </div>
+</div>
+<div class="mt-4">
+  <h2 class="h4">All Known Values</h2>
+  {% for field_name, values in golden.all_known_values.items() %}
+  <div class="card card-body mb-3">
+    <h3 class="h6">{{ field_name }}</h3>
+    <ul class="mb-0">
+      {% for value in values %}
+      <li>{{ value.raw_value }} · {{ value.source_system }} · trust {{ '%.2f'|format(value.trust_score) }}{% if value.is_primary %} · primary{% endif %}{% if value.is_verified %} · verified{% endif %}{% if value.manual_lock %} · manual lock{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

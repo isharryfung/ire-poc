@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import uvicorn
+
 from ire.cli import main
 
 
@@ -55,3 +57,25 @@ def test_nested_storage_and_process_commands_work(tmp_path: Path) -> None:
     ])
     assert rc == 0
     assert output_path.exists()
+
+
+def test_web_command_runs_uvicorn_with_localhost_defaults(monkeypatch, tmp_path: Path) -> None:
+    called: dict[str, object] = {}
+
+    def fake_run(app, host: str, port: int) -> None:
+        called["app"] = app
+        called["host"] = host
+        called["port"] = port
+
+    monkeypatch.setattr(uvicorn, "run", fake_run)
+    rc = main([
+        "web",
+        "--root",
+        str(tmp_path / "repo"),
+        "--config-dir",
+        str(Path(__file__).resolve().parents[1] / "config"),
+    ])
+
+    assert rc == 0
+    assert called["host"] == "127.0.0.1"
+    assert called["port"] == 8000
