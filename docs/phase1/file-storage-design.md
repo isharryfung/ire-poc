@@ -20,6 +20,7 @@ If an existing state JSON file is malformed, writes fail with a clear repository
 - exact payload lookup: `source_system + source_pk + payload_hash`
 
 Same external key with different payload hash is allowed for revisions via `supersedes_source_record_id`.
+In this MVP, duplicate detection/lookup on source-record events uses a full JSONL scan (linear complexity).
 
 ## Single-writer assumption
 This foundation assumes a single writer process. Multi-writer locking/consensus is out of scope.

@@ -11,7 +11,11 @@ from .models import AuditEvent, GoldenRecord, ManualReviewTask, MatchRun, MergeH
 
 
 class JsonFileRepository:
-    """Single-writer JSON/JSONL repository for the Phase 1 MVP."""
+    """Single-writer JSON/JSONL repository for the Phase 1 MVP.
+
+    Source-record duplicate checks currently use a linear JSONL scan as an
+    intentional Phase 1 foundation trade-off.
+    """
 
     def __init__(self, root_dir: str | Path) -> None:
         self.root = Path(root_dir)
@@ -95,7 +99,7 @@ class JsonFileRepository:
             )
         self._append_jsonl(self.source_records_path, record.to_dict())
 
-    def _iter_source_records(self) -> list[SourceRecord]:
+    def _load_source_records(self) -> list[SourceRecord]:
         if not self.source_records_path.exists():
             return []
         records: list[SourceRecord] = []
@@ -115,7 +119,7 @@ class JsonFileRepository:
     def find_source_records_by_external_key(self, source_system: str, source_pk: str) -> list[SourceRecord]:
         return [
             rec
-            for rec in self._iter_source_records()
+            for rec in self._load_source_records()
             if rec.source_system == source_system and rec.source_pk == source_pk
         ]
 

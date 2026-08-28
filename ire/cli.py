@@ -5,6 +5,7 @@ import sys
 
 from . import __version__
 from .config import load_config
+from .exceptions import ConfigurationError, RepositoryError
 from .json_repository import JsonFileRepository
 
 
@@ -30,27 +31,31 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "init-storage":
-        repo = JsonFileRepository(args.root)
-        repo.initialize_storage()
-        print(f"initialized storage under {args.root}")
-        return 0
+    try:
+        if args.command == "init-storage":
+            repo = JsonFileRepository(args.root)
+            repo.initialize_storage()
+            print(f"initialized storage under {args.root}")
+            return 0
 
-    if args.command == "validate-storage":
-        repo = JsonFileRepository(args.root)
-        repo.validate_storage()
-        print(f"storage is valid under {args.root}")
-        return 0
+        if args.command == "validate-storage":
+            repo = JsonFileRepository(args.root)
+            repo.validate_storage()
+            print(f"storage is valid under {args.root}")
+            return 0
 
-    if args.command == "validate-config":
-        config = load_config(args.config_dir)
-        print(
-            "config is valid "
-            f"(source_systems={len(config.source_systems)}, "
-            f"matching_policy={config.matching_policy.version}, "
-            f"survivorship_policy={config.survivorship_policy.version})"
-        )
-        return 0
+        if args.command == "validate-config":
+            config = load_config(args.config_dir)
+            print(
+                "config is valid "
+                f"(source_systems={len(config.source_systems)}, "
+                f"matching_policy={config.matching_policy.version}, "
+                f"survivorship_policy={config.survivorship_policy.version})"
+            )
+            return 0
+    except (ConfigurationError, RepositoryError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
 
     parser.print_help(sys.stderr)
     return 1

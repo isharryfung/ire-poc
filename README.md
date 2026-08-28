@@ -38,9 +38,9 @@ pytest
 ## CLI examples
 ```bash
 python -m ire --version
-python -m ire init-storage --root /home/runner/work/ire-poc/ire-poc/data
-python -m ire validate-config --config-dir /home/runner/work/ire-poc/ire-poc/config
-python -m ire validate-storage --root /home/runner/work/ire-poc/ire-poc/data
+python -m ire init-storage --root data
+python -m ire validate-config --config-dir config
+python -m ire validate-storage --root data
 ```
 
 ## File-storage layout
@@ -55,6 +55,7 @@ python -m ire validate-storage --root /home/runner/work/ire-poc/ire-poc/data
   - `data/events/audit_log.jsonl`
 
 Single-writer MVP assumption: concurrent writers are out of scope in this phase.
+Event-log duplicate detection currently uses linear scans of `source_records.jsonl`; this is an intentional MVP trade-off and not a production scaling design.
 
 ## Data safety
 Use synthetic sample data only. Do not commit real personal data.

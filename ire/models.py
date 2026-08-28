@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
 from .enums import (
@@ -42,7 +43,7 @@ def _serialize(obj: Any) -> Any:
         return [_serialize(item) for item in obj]
     if isinstance(obj, dict):
         return {k: _serialize(v) for k, v in obj.items()}
-    if hasattr(obj, "value"):
+    if isinstance(obj, Enum):
         return obj.value
     return obj
 
