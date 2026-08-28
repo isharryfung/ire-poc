@@ -8,7 +8,8 @@ from ire.exceptions import ConfigurationError
 
 
 def test_load_config_success() -> None:
-    config = load_config("/home/runner/work/ire-poc/ire-poc/config")
+    config_dir = Path(__file__).resolve().parents[1] / "config"
+    config = load_config(config_dir)
     assert len(config.source_systems) >= 1
     assert config.matching_policy.thresholds.auto_merge == 0.85
 

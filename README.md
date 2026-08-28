@@ -26,13 +26,15 @@ Legacy Java/Spring implementation details remain available in Git history and su
 ```bash
 python -m venv .venv
 source .venv/bin/activate
+# Windows PowerShell:
+# .\\.venv\\Scripts\\Activate.ps1
 pip install -e .
 pip install pytest
 ```
 
 ## Run tests
 ```bash
-pytest
+python -m pytest
 ```
 
 ## CLI examples
