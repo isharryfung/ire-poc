@@ -14,5 +14,13 @@
     "trust_score": 0.75,
     "internal": false,
     "active": true
+  },
+  {
+    "code": "PORTAL",
+    "name": "Self-Service Portal",
+    "trust_level": "LOW",
+    "trust_score": 0.40,
+    "internal": false,
+    "active": true
   }
 ]

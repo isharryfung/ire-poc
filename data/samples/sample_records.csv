@@ -1,0 +1,4 @@
+source_system,source_pk,emplid,hkid,first_name,last_name,email,phone,date_of_birth,gender,address
+SIS,2001,E2001,GH4567890,Bella,Tam,bella.tam@school.edu.hk,+852 5666 7777,1995-08-09,F,5 Queen Road Central
+ALUMNI,A-4001,,,Bella,Tam,bella.tam@school.edu.hk,56667777,1995-08-09,F,5 queen road central
+PORTAL,P-4002,,,Bella,Tom,bella.tam@portal.org,56667778,1995-08-09,F,

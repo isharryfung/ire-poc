@@ -99,7 +99,7 @@ class JsonFileRepository:
             )
         self._append_jsonl(self.source_records_path, record.to_dict())
 
-    def _load_source_records(self) -> list[SourceRecord]:
+    def load_source_records(self) -> list[SourceRecord]:
         if not self.source_records_path.exists():
             return []
         records: list[SourceRecord] = []
@@ -116,10 +116,16 @@ class JsonFileRepository:
                     ) from exc
         return records
 
+    def find_source_record(self, source_record_id: str) -> SourceRecord | None:
+        for record in self.load_source_records():
+            if record.source_record_id == source_record_id:
+                return record
+        return None
+
     def find_source_records_by_external_key(self, source_system: str, source_pk: str) -> list[SourceRecord]:
         return [
             rec
-            for rec in self._load_source_records()
+            for rec in self.load_source_records()
             if rec.source_system == source_system and rec.source_pk == source_pk
         ]
 
@@ -151,6 +157,27 @@ class JsonFileRepository:
 
     def append_match_run(self, run: MatchRun) -> None:
         self._append_jsonl(self.match_runs_path, run.to_dict())
+
+    def load_match_runs(self) -> list[MatchRun]:
+        if not self.match_runs_path.exists():
+            return []
+        runs: list[MatchRun] = []
+        with self.match_runs_path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    runs.append(MatchRun.from_dict(json.loads(line)))
+                except json.JSONDecodeError as exc:
+                    raise RepositoryError(f"corrupted JSONL event file: {self.match_runs_path}") from exc
+        return runs
+
+    def find_match_run(self, run_id: str) -> MatchRun | None:
+        for run in self.load_match_runs():
+            if run.run_id == run_id:
+                return run
+        return None
 
     def load_manual_review_tasks(self) -> list[ManualReviewTask]:
         return self._load_typed_state(self.review_tasks_path, ManualReviewTask.from_dict)
