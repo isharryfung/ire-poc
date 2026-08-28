@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Match Result · IRE Demo{% endblock %}
+{% block content %}
+<h1 class="mb-4">Match Result</h1>
+<div class="card border-{{ result.style }} mb-4">
+  <div class="card-body">
+    <span class="badge text-bg-{{ result.style }} mb-2">{{ result.outcome }}</span>
+    <h2 class="h4">Decision summary</h2>
+    <ul>
+      <li>Confidence: {{ '%.2f'|format(result.confidence) }}</li>
+      <li>Golden Record: {{ result.golden_record_id or 'None' }}</li>
+      <li>Match method: {{ result.match_method or 'N/A' }}</li>
+      <li>Match tier: {{ result.match_tier or 'N/A' }}</li>
+      <li>Reason: {{ result.reason }}</li>
+      <li>Safety flags: {{ result.safety_flags|join(', ') if result.safety_flags else 'None' }}</li>
+      <li>Review task: {% if result.review_task_id %}<a href="/reviews/{{ result.review_task_id }}">{{ result.review_task_id }}</a>{% else %}None{% endif %}</li>
+    </ul>
+  </div>
+</div>
+{% if result.validation_issues %}
+<div class="card card-body mb-4">
+  <h2 class="h5">Validation issues</h2>
+  <ul>{% for issue in result.validation_issues %}<li>{{ issue.field }} · {{ issue.code }} · {{ issue.message }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% if result.available_evidence %}
+<div class="card card-body mb-4">
+  <h2 class="h5">Field-level evidence</h2>
+  <div class="table-responsive">
+    <table class="table table-sm table-striped">
+      <thead><tr><th>Field</th><th>Incoming</th><th>Golden</th><th>Algorithm</th><th>Score</th><th>Weight</th></tr></thead>
+      <tbody>
+        {% for item in result.available_evidence %}
+        <tr>
+          <td>{{ item.field }}</td>
+          <td>{{ item.raw_a or '—' }}</td>
+          <td>{{ item.raw_b or '—' }}</td>
+          <td>{{ item.algorithm }}</td>
+          <td>{{ '%.2f'|format(item.similarity) }}</td>
+          <td>{{ '%.2f'|format(item.normalized_weight) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+<a class="btn btn-outline-primary" href="/identities/new">Submit another identity</a>
+{% endblock %}

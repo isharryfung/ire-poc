@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}{{ review.task_id }} · IRE Demo{% endblock %}
+{% block content %}
+<h1 class="mb-4">Review Task {{ review.task_id }}</h1>
+{% if message %}<div class="alert alert-success">{{ message }}</div>{% endif %}
+<ul>
+  <li>Status: {{ review.status }}</li>
+  <li>Suggested outcome: {{ review.suggested_decision }}</li>
+  <li>Safety flags: {{ review.safety_flags|join(', ') if review.safety_flags else 'None' }}</li>
+</ul>
+<div class="row g-4 mb-4">
+  <div class="col-lg-6">
+    <h2 class="h4">Incoming Raw Data</h2>
+    <ul class="list-group">
+      {% for key, value in review.source_record.payload.items() %}
+      <li class="list-group-item"><strong>{{ key }}</strong>: {{ value }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="col-lg-6">
+    <h2 class="h4">Incoming Normalized Identity</h2>
+    <ul class="list-group">
+      {% for key, value in review.normalized.items() %}
+      <li class="list-group-item"><strong>{{ key }}</strong>: {{ value }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% if review.best_candidate %}
+<div class="card card-body mb-4">
+  <h2 class="h4">Best Candidate</h2>
+  <p>ID: {{ review.best_candidate.golden_record_id }} · Score {{ '%.2f'|format(review.best_candidate.score) }} · {{ review.best_candidate.method }} / {{ review.best_candidate.tier }}</p>
+  <h3 class="h5">Field-level Evidence</h3>
+  <table class="table table-sm table-striped">
+    <thead><tr><th>Field</th><th>Incoming</th><th>Golden</th><th>Algorithm</th><th>Similarity</th><th>Priority</th><th>Weight</th><th>Weighted Score</th></tr></thead>
+    <tbody>
+      {% for item in review.best_candidate.explainability.evidence %}
+      <tr>
+        <td>{{ item.field }}</td>
+        <td>{{ item.raw_a or '—' }}</td>
+        <td>{{ item.raw_b or '—' }}</td>
+        <td>{{ item.algorithm }}</td>
+        <td>{{ '%.2f'|format(item.similarity) }}</td>
+        <td>{{ item.priority }}</td>
+        <td>{{ '%.2f'|format(item.normalized_weight) }}</td>
+        <td>{{ '%.2f'|format(item.weighted_score) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if review.alternate_candidates %}
+  <h3 class="h5">Alternate Candidates</h3>
+  <ul>{% for item in review.alternate_candidates %}<li>{{ item.golden_record_id }} · {{ '%.2f'|format(item.score) }}</li>{% endfor %}</ul>
+  {% endif %}
+</div>
+{% endif %}
+{% if review.candidate_goldens %}
+<div class="mb-4">
+  <h2 class="h4">Candidate Golden Records</h2>
+  {% for golden in review.candidate_goldens %}
+  {% if golden %}
+  <div class="card card-body mb-3">
+    <h3 class="h6">{{ golden.golden_record_id }}</h3>
+    <ul class="mb-0">{% for key, value in golden.primary_values.items() %}<li><strong>{{ key }}</strong>: {{ value.raw_value }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+<div class="card card-body">
+  <h2 class="h4">Decide Review</h2>
+  {% if review.is_completed %}
+  <p class="text-muted mb-0">This review task is completed. Actions are unavailable.</p>
+  {% else %}
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <form method="post" action="/reviews/{{ review.task_id }}/approve" onsubmit="return confirm('Approve merge for this review task?');">
+        <h3 class="h5">Approve Merge</h3>
+        <div class="mb-2"><label class="form-label">Reviewer</label><input class="form-control" name="reviewer" required></div>
+        <div class="mb-2"><label class="form-label">Selected Golden Record</label>
+          <select class="form-select" name="selected_golden_record_id">
+            {% for item in review.candidates %}<option value="{{ item.golden_record_id }}">{{ item.golden_record_id }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="mb-2"><label class="form-label">Notes</label><textarea class="form-control" name="notes"></textarea></div>
+        <button class="btn btn-success" type="submit">Approve</button>
+      </form>
+    </div>
+    <div class="col-lg-6">
+      <form method="post" action="/reviews/{{ review.task_id }}/reject" onsubmit="return confirm('Reject and create a new Golden Record or mark invalid?');">
+        <h3 class="h5">Reject</h3>
+        <div class="mb-2"><label class="form-label">Reviewer</label><input class="form-control" name="reviewer" required></div>
+        <div class="mb-2"><label class="form-label">Action</label><select class="form-select" name="action"><option value="create-new">Create new Golden Record</option><option value="invalid">Mark invalid input</option></select></div>
+        <div class="mb-2"><label class="form-label">Notes</label><textarea class="form-control" name="notes"></textarea></div>
+        <button class="btn btn-danger" type="submit">Submit Rejection</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

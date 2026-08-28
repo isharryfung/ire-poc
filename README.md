@@ -1,35 +1,33 @@
-# Identity Resolution Engine (Phase 1 Foundation)
+# Identity Resolution Engine (Phase 1.1 Demo)
 
-This repository is now a **Python-only Phase 1 foundation** for the Identity Resolution Engine (IRE).
+This repository is a **Python-only Phase 1 Identity Resolution Engine** with a local **FastAPI demonstration layer**.
 
 ## Scope now
-Implemented in this PR:
+Implemented in Phase 1 / Phase 1.1:
 - Python package scaffolding (`ire`)
-- Typed domain models (dataclasses)
-- JSON/JSONL file-storage repository (no database)
+- Typed domain models and JSON/JSONL file storage
 - Configuration loader/validator
-- ID and UTC timestamp utilities
-- Minimal CLI foundation
-- Focused unit tests for the foundation storage/config/model behavior
+- Phase 1 ingestion, validation, matching, decisioning, survivorship, and manual review workflow
+- CLI commands for processing, preview, review, Golden Record inspection, and the local FastAPI demo
+- FastAPI + Jinja2 browser demo backed by the existing Phase 1 services
 
-Not implemented yet (future milestones):
-- Deterministic/probabilistic matching pipeline execution
-- End-to-end merge workflow automation
-- Manual review operations workflow
+Explicitly out of scope:
+- Any legacy Java/Spring/database runtime
+- Production authentication/authorization
 - Phase 2 Relationship Resolution / Identity Graph
 
 ## No database dependency
-There is **no active Maven/Spring/JPA/Flyway/H2/Oracle/Redis runtime** in this repository.
-Legacy Java/Spring implementation details remain available in Git history and summarized under `docs/legacy-java/`.
+There is **no database dependency** in the active runtime. The demo uses:
+- JSON state files under `state/`
+- JSONL event files under `events/`
+
+Single-writer/file-storage limitations still apply.
 
 ## Setup
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-# Windows PowerShell:
-# .\\.venv\\Scripts\\Activate.ps1
-pip install -e .
-pip install pytest
+pip install -e '.[test]'
 ```
 
 ## Run tests
@@ -40,24 +38,77 @@ python -m pytest
 ## CLI examples
 ```bash
 python -m ire --version
-python -m ire init-storage --root data
-python -m ire validate-config --config-dir config
-python -m ire validate-storage --root data
+python -m ire storage init --root data/demo-run
+python -m ire process --input '{"source_system":"SIS","source_pk":"1","data":{"emplid":"E1"}}' --root data/demo-run
+python -m ire preview --input '{"source_system":"SIS","source_pk":"1","data":{"emplid":"E1"}}' --root data/demo-run
+python -m ire review list --root data/demo-run
+python -m ire golden show GR-EXAMPLE --root data/demo-run
+```
+
+## Start the local web demo
+Always bind to localhost only.
+
+```bash
+python -m ire web --host 127.0.0.1 --port 8000 --root data/demo-run --config-dir config
+```
+
+Optional direct Uvicorn launch:
+```bash
+uvicorn ire.web.app:create_app --factory --host 127.0.0.1 --port 8000
+```
+
+Local URLs:
+- App: `http://127.0.0.1:8000/`
+- OpenAPI docs: `http://127.0.0.1:8000/docs`
+
+## Demo safety warning
+This demo has **no production authentication** and **must not be exposed publicly**. Use synthetic sample data only.
+
+## Browser demo workflow
+- Open the dashboard at `/`
+- Submit one record at `/identities/new`
+- Upload a CSV/JSON batch at `/identities/batch`
+- Inspect Golden Records at `/golden-records`
+- Process pending manual reviews at `/reviews`
+
+## API routes
+Key REST endpoints live under `/api/v1`:
+- `GET /api/v1/health`
+- `POST /api/v1/identities/process`
+- `POST /api/v1/identities/preview`
+- `POST /api/v1/identities/batch`
+- `GET /api/v1/golden-records`
+- `GET /api/v1/golden-records/{golden_id}`
+- `GET /api/v1/reviews`
+- `GET /api/v1/reviews/{task_id}`
+- `POST /api/v1/reviews/{task_id}/approve`
+- `POST /api/v1/reviews/{task_id}/reject`
+
+## CSV upload format
+CSV uploads should include `source_system` and `source_pk` columns plus any supported identity fields, for example:
+
+```csv
+source_system,source_pk,emplid,first_name,last_name,email,phone,date_of_birth
+SIS,SIS-10001,100001,Siu Mei,Chan,smchan@example.edu,8567-4123,1985-05-20
+```
+
+## Isolated demo storage and reset
+Use a dedicated root such as `data/demo-run` or a temporary directory for tests and demos.
+
+```bash
+rm -rf data/demo-run
+python -m ire storage init --root data/demo-run
 ```
 
 ## File-storage layout
 - Current state (JSON):
-  - `data/state/golden_records.json`
-  - `data/state/record_links.json`
-  - `data/state/review_tasks.json`
+  - `state/golden_records.json`
+  - `state/record_links.json`
+  - `state/review_tasks.json`
 - Append-only events (JSONL):
-  - `data/events/source_records.jsonl`
-  - `data/events/match_runs.jsonl`
-  - `data/events/merge_history.jsonl`
-  - `data/events/audit_log.jsonl`
+  - `events/source_records.jsonl`
+  - `events/match_runs.jsonl`
+  - `events/merge_history.jsonl`
+  - `events/audit_log.jsonl`
 
-Single-writer MVP assumption: concurrent writers are out of scope in this phase.
-Event-log duplicate detection currently uses linear scans of `source_records.jsonl`; this is an intentional MVP trade-off and not a production scaling design.
-
-## Data safety
-Use synthetic sample data only. Do not commit real personal data.
+See `docs/demo-guide.md` for the local demo guide.

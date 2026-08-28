@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Review Queue · IRE Demo{% endblock %}
+{% block content %}
+<h1 class="mb-4">Review Queue</h1>
+<form class="row g-3 mb-4" method="get">
+  <div class="col-md-2"><input class="form-control" name="status" placeholder="Status" value="{{ filters.status }}"></div>
+  <div class="col-md-2"><input class="form-control" name="source_system" placeholder="Source system" value="{{ filters.source_system }}"></div>
+  <div class="col-md-2"><input class="form-control" name="min_confidence" placeholder="Min confidence" value="{{ filters.min_confidence }}"></div>
+  <div class="col-md-2"><input class="form-control" name="max_confidence" placeholder="Max confidence" value="{{ filters.max_confidence }}"></div>
+  <div class="col-md-2"><input class="form-control" name="reason_code" placeholder="Reason code" value="{{ filters.reason_code }}"></div>
+  <div class="col-md-2"><button class="btn btn-outline-primary w-100" type="submit">Filter</button></div>
+</form>
+{% if reviews %}
+<table class="table table-striped">
+  <thead><tr><th>Task</th><th>Source</th><th>Confidence</th><th>Suggested</th><th>Reason</th><th>Status</th><th>Created</th></tr></thead>
+  <tbody>
+    {% for item in reviews %}
+    <tr>
+      <td><a href="/reviews/{{ item.task_id }}">{{ item.task_id }}</a></td>
+      <td>{{ item.source_system }} / {{ item.source_pk }}</td>
+      <td>{{ '%.2f'|format(item.confidence) }}</td>
+      <td>{{ item.suggested_candidate or '—' }}</td>
+      <td>{{ item.reason_code or item.reason }}</td>
+      <td>{{ item.status }}</td>
+      <td>{{ item.created_at }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}<p class="text-muted">No review tasks found.</p>{% endif %}
+{% endblock %}

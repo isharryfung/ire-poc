@@ -8,13 +8,27 @@ version = "0.1.0"
 description = "Identity Resolution Engine Phase 1 Python foundation"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "fastapi>=0.115,<1.0",
+    "jinja2>=3.1,<4.0",
+    "python-multipart>=0.0.9,<1.0",
+    "uvicorn>=0.30,<1.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "httpx>=0.27,<1.0",
+    "pytest>=8.0,<9.0",
+]
 
 [project.scripts]
 ire = "ire.cli:main"
 
-[tool.setuptools]
-packages = ["ire"]
+[tool.setuptools.packages.find]
+include = ["ire*"]
+
+[tool.setuptools.package-data]
+"ire.web" = ["templates/**/*.html", "static/css/*.css", "static/js/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -38,6 +38,11 @@ class ProcessResult:
     match_run_id: str | None = None
     confidence: float = 0.0
     reason: str = ""
+    match_method: str | None = None
+    match_tier: str | None = None
+    safety_flags: list[str] = field(default_factory=list)
+    best_candidate: dict[str, Any] | None = None
+    candidates: list[dict[str, Any]] = field(default_factory=list)
 
 
 class _PreviewRepository:
@@ -94,6 +99,12 @@ class _PreviewRepository:
 
     def find_match_run(self, run_id: str):
         return next((r for r in self._runs if r.run_id == run_id), None)
+
+    def load_merge_history_events(self):
+        return list(self._merge_history)
+
+    def load_audit_events(self):
+        return list(self._audits)
 
     def load_manual_review_tasks(self):
         return list(self._tasks)
@@ -193,6 +204,16 @@ def _persist_create_golden(repo: IRERepository, config: IREConfig, source_record
     return golden.golden_record_id
 
 
+def _result_method_and_tier(decision: DecisionResult, deterministic, best_candidate: dict[str, Any] | None) -> tuple[str | None, str | None]:
+    if decision.outcome == MatchDecisionType.CREATE_NEW_GOLDEN.value:
+        return None, None
+    if deterministic is not None and (deterministic.matched or deterministic.conflict_detected):
+        return MatchMethod.DETERMINISTIC.value, MatchTier.EXACT.value
+    if best_candidate is None:
+        return None, None
+    return best_candidate.get("method"), best_candidate.get("tier")
+
+
 def process_record(raw: dict, config: IREConfig, repo: IRERepository) -> ProcessResult:
     ingest_result = ingest_record(raw, config, repo)
     validation = ingest_result.validation_result
@@ -211,6 +232,20 @@ def process_record(raw: dict, config: IREConfig, repo: IRERepository) -> Process
         )
 
     if not validation.valid or ingest_result.source_record is None:
+        repo.append_audit_event(
+            AuditEvent(
+                audit_event_id=new_audit_event_id(),
+                event_type=MatchDecisionType.VALIDATION_FAILED.value,
+                entity_type="SourceRecord",
+                entity_id=str(raw.get("source_pk") or "unknown"),
+                actor="system",
+                details={
+                    "source_system": str(raw.get("source_system") or ""),
+                    "issues": [{"field": issue.field, "code": issue.code, "severity": issue.severity} for issue in validation.issues],
+                },
+                created_at=utc_now_iso(),
+            )
+        )
         return ProcessResult(
             source_record_id=None,
             outcome=MatchDecisionType.VALIDATION_FAILED.value,
@@ -255,6 +290,10 @@ def process_record(raw: dict, config: IREConfig, repo: IRERepository) -> Process
         review_task = create_review_task(source_record, run.run_id, [candidate.candidate_id for candidate in run.candidates], decision.safety_flags, repo)
         review_task_id = review_task.review_id
 
+    candidates = [candidate.to_dict() for candidate in run.candidates]
+    best_candidate = next((candidate for candidate in candidates if candidate["candidate_id"] == run.best_candidate_id), candidates[0] if candidates else None)
+    match_method, match_tier = _result_method_and_tier(decision, deterministic, best_candidate)
+
     return ProcessResult(
         source_record_id=source_record.source_record_id,
         outcome=decision.outcome,
@@ -266,6 +305,11 @@ def process_record(raw: dict, config: IREConfig, repo: IRERepository) -> Process
         match_run_id=run.run_id,
         confidence=decision.confidence,
         reason=decision.reason,
+        match_method=match_method,
+        match_tier=match_tier,
+        safety_flags=list(decision.safety_flags),
+        best_candidate=best_candidate,
+        candidates=candidates,
     )
 
 
@@ -293,4 +337,9 @@ def preview_record(raw: dict, config: IREConfig, repo: IRERepository) -> dict:
         "match_run_id": result.match_run_id,
         "confidence": result.confidence,
         "reason": result.reason,
+        "match_method": result.match_method,
+        "match_tier": result.match_tier,
+        "safety_flags": result.safety_flags,
+        "best_candidate": result.best_candidate,
+        "candidates": result.candidates,
     }

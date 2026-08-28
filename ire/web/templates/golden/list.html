@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Golden Records · IRE Demo{% endblock %}
+{% block content %}
+<h1 class="mb-4">Golden Records</h1>
+{% if goldens %}
+<div class="table-responsive">
+  <table class="table table-striped">
+    <thead><tr><th>ID</th><th>Status</th><th>Version</th><th>Primary Values</th></tr></thead>
+    <tbody>
+      {% for golden in goldens %}
+      <tr>
+        <td><a href="/golden-records/{{ golden.golden_record_id }}">{{ golden.golden_record_id }}</a></td>
+        <td>{{ golden.status }}</td>
+        <td>{{ golden.version }}</td>
+        <td>
+          {% for field_name, value in golden.primary_values.items() %}
+          <div><strong>{{ field_name }}</strong>: {{ value.raw_value }}</div>
+          {% endfor %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}<p class="text-muted">No Golden Records yet.</p>{% endif %}
+{% endblock %}

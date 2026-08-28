@@ -6,6 +6,8 @@ import json
 import sys
 from pathlib import Path
 
+import uvicorn
+
 from . import __version__
 from .config import load_config
 from .exceptions import ConfigurationError, InvalidReviewDecisionError, NotFoundError, RepositoryError
@@ -92,6 +94,12 @@ def build_parser() -> argparse.ArgumentParser:
     golden_show = golden_sub.add_parser("show", help="Show golden record")
     golden_show.add_argument("golden_id")
     golden_show.add_argument("--root", default="data")
+
+    web_parser = subparsers.add_parser("web", help="Run the FastAPI demo server")
+    web_parser.add_argument("--host", default="127.0.0.1")
+    web_parser.add_argument("--port", type=int, default=8000)
+    web_parser.add_argument("--root", default="data/demo-run")
+    web_parser.add_argument("--config-dir", default="config")
 
     return parser
 
@@ -217,6 +225,13 @@ def main(argv: list[str] | None = None) -> int:
             if golden is None:
                 raise NotFoundError(f"golden record not found: {args.golden_id}")
             _print_json(golden.to_dict())
+            return EXIT_SUCCESS
+
+        if args.command == "web":
+            from .web import create_app
+
+            app = create_app(root_dir=args.root, config_dir=args.config_dir)
+            uvicorn.run(app, host=args.host, port=args.port)
             return EXIT_SUCCESS
     except ConfigurationError as exc:
         print(f"error: {exc}", file=sys.stderr)
