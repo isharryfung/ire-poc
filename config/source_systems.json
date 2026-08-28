@@ -1,0 +1,18 @@
+[
+  {
+    "code": "SIS",
+    "name": "Student Information System",
+    "trust_level": "HIGH",
+    "trust_score": 0.95,
+    "internal": true,
+    "active": true
+  },
+  {
+    "code": "ALUMNI",
+    "name": "Alumni CRM",
+    "trust_level": "MEDIUM",
+    "trust_score": 0.75,
+    "internal": false,
+    "active": true
+  }
+]

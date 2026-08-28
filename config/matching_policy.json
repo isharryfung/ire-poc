@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "thresholds": {
+    "auto_merge": 0.85,
+    "manual_review": 0.50,
+    "candidate_gap": 0.10
+  },
+  "field_priorities": ["government_id", "email", "phone", "name", "dob"],
+  "algorithms": ["exact_match", "jaro_winkler", "token_set_ratio"],
+  "candidate_limit": 25,
+  "safety": {
+    "require_minimum_fields": true,
+    "block_if_conflicting_verified_fields": true
+  }
+}

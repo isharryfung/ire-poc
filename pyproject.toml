@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ire"
+version = "0.1.0"
+description = "Identity Resolution Engine Phase 1 Python foundation"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+ire = "ire.cli:main"
+
+[tool.setuptools]
+packages = ["ire"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
