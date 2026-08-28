@@ -28,3 +28,5 @@ htmlcov/
 
 # Runtime artifacts
 *.log
+*.bak
+data/test-run*/

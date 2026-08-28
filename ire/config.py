@@ -35,11 +35,17 @@ class MatchingPolicy:
     field_priorities: tuple[str, ...]
     algorithms: tuple[str, ...]
     candidate_limit: int
+    full_scan_limit: int
+    min_comparable_fields: int
     safety: dict[str, Any]
 
     def __post_init__(self) -> None:
         if self.candidate_limit <= 0:
             raise ConfigurationError("candidate_limit must be > 0")
+        if self.full_scan_limit <= 0:
+            raise ConfigurationError("full_scan_limit must be > 0")
+        if self.min_comparable_fields <= 0:
+            raise ConfigurationError("min_comparable_fields must be > 0")
 
 
 @dataclass(frozen=True)
@@ -93,6 +99,8 @@ def _load_matching_policy(path: Path) -> MatchingPolicy:
             field_priorities=tuple(data["field_priorities"]),
             algorithms=tuple(data["algorithms"]),
             candidate_limit=int(data["candidate_limit"]),
+            full_scan_limit=int(data.get("full_scan_limit", data.get("safety", {}).get("full_scan_limit", 50))),
+            min_comparable_fields=int(data.get("min_comparable_fields", 2)),
             safety=dict(data["safety"]),
         )
     except KeyError as exc:

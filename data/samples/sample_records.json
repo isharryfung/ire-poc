@@ -1,0 +1,203 @@
+[
+  {
+    "source_system": "SIS",
+    "source_pk": "1001",
+    "data": {
+      "emplid": "E1001",
+      "hkid": "AB1234567",
+      "first_name": "John",
+      "last_name": "Chan",
+      "email": "john.chan@school.edu.hk",
+      "phone": "+852 6123 4567",
+      "date_of_birth": "1990-01-02",
+      "gender": "M",
+      "address": "1 Main Road, Kowloon"
+    }
+  },
+  {
+    "source_system": "SIS",
+    "source_pk": "1001-R1",
+    "data": {
+      "emplid": "E1001",
+      "first_name": "John",
+      "last_name": "Chan",
+      "email": "john.chan@school.edu.hk",
+      "phone": "+852 6123 4567",
+      "date_of_birth": "1990-01-02",
+      "gender": "M",
+      "address": "1 Main Road, Kowloon"
+    }
+  },
+  {
+    "source_system": "ALUMNI",
+    "source_pk": "A-2001",
+    "data": {
+      "email": "john.chan@school.edu.hk",
+      "first_name": "John",
+      "last_name": "Chan",
+      "phone": "61234567",
+      "date_of_birth": "1990-01-02",
+      "gender": "M",
+      "address": "1 main rd kowloon"
+    }
+  },
+  {
+    "source_system": "ALUMNI",
+    "source_pk": "A-2002",
+    "data": {
+      "email": "john.c@alumni.org",
+      "first_name": "Jon",
+      "last_name": "Chan",
+      "phone": "61234567",
+      "date_of_birth": "1990-01-02",
+      "gender": "M",
+      "address": "1 Main Road Kowloon"
+    }
+  },
+  {
+    "source_system": "ALUMNI",
+    "source_pk": "A-2003",
+    "data": {
+      "email": "jane.lee@alumni.org",
+      "first_name": "Jane",
+      "last_name": "Lee",
+      "phone": "52345678",
+      "date_of_birth": "1992-04-05",
+      "gender": "F",
+      "address": "2 Harbour View, HK"
+    }
+  },
+  {
+    "source_system": "SIS",
+    "source_pk": "1002",
+    "data": {
+      "emplid": "E1002",
+      "student_id": "S1002",
+      "hkid": "CD2345678",
+      "first_name": "Jane",
+      "last_name": "Lee",
+      "email": "jane.lee@school.edu.hk",
+      "phone": "+852 5234 5678",
+      "date_of_birth": "1992-04-05",
+      "gender": "F",
+      "address": "2 Harbour View, Hong Kong"
+    }
+  },
+  {
+    "source_system": "PORTAL",
+    "source_pk": "P-3001",
+    "data": {
+      "email": "jane.lee@school.edu.hk",
+      "first_name": "Jane",
+      "last_name": "Li",
+      "phone": "52345679",
+      "date_of_birth": "1992-04-05",
+      "gender": "F"
+    }
+  },
+  {
+    "source_system": "SIS",
+    "source_pk": "1003",
+    "data": {
+      "emplid": "E1003",
+      "hkid": "EF3456789",
+      "first_name": "Amy",
+      "last_name": "Wong",
+      "email": "amy.wong@school.edu.hk",
+      "phone": "+852 5345 6789",
+      "date_of_birth": "1993-06-07",
+      "gender": "F",
+      "address": "3 Garden Street"
+    }
+  },
+  {
+    "source_system": "SIS",
+    "source_pk": "1003",
+    "data": {
+      "emplid": "E1003",
+      "hkid": "EF3456789",
+      "first_name": "Amy",
+      "last_name": "Wong",
+      "email": "amy.wong@school.edu.hk",
+      "phone": "+852 5345 6789",
+      "date_of_birth": "1993-06-07",
+      "gender": "F",
+      "address": "3 Garden Street"
+    }
+  },
+  {
+    "source_system": "SIS",
+    "source_pk": "1003",
+    "data": {
+      "emplid": "E1003",
+      "hkid": "EF3456789",
+      "first_name": "Amy",
+      "last_name": "Wong",
+      "email": "amy.wong+new@school.edu.hk",
+      "phone": "+852 5345 6789",
+      "date_of_birth": "1993-06-07",
+      "gender": "F",
+      "address": "3 Garden Street"
+    }
+  },
+  {
+    "source_system": "ALUMNI",
+    "source_pk": "A-2004",
+    "data": {
+      "first_name": "Amy",
+      "last_name": "Wong",
+      "email": "amy.wong@alumni.org",
+      "phone": "53456789",
+      "date_of_birth": "1993-06-07"
+    }
+  },
+  {
+    "source_system": "ALUMNI",
+    "source_pk": "A-2005",
+    "data": {
+      "first_name": "Ami",
+      "last_name": "Wong",
+      "email": "ami.wong@alumni.org",
+      "phone": "53456780",
+      "date_of_birth": "1993-06-08"
+    }
+  },
+  {
+    "source_system": "SIS",
+    "source_pk": "1004",
+    "data": {
+      "emplid": "E1004",
+      "first_name": "Chris",
+      "last_name": "Ho",
+      "email": "chris.ho@school.edu.hk",
+      "phone": "+852 5456 7890",
+      "date_of_birth": "1994-07-08",
+      "gender": "O"
+    }
+  },
+  {
+    "source_system": "ALUMNI",
+    "source_pk": "A-2006",
+    "data": {
+      "alumni_id": "AL9001",
+      "first_name": "Chris",
+      "last_name": "Ho",
+      "email": "chris.ho@school.edu.hk",
+      "phone": "54567890",
+      "date_of_birth": "1994-07-08",
+      "gender": "O"
+    }
+  },
+  {
+    "source_system": "ALUMNI",
+    "source_pk": "A-2007",
+    "data": {
+      "first_name": "Unique",
+      "last_name": "Person",
+      "email": "unique.person@example.org",
+      "phone": "58888888",
+      "date_of_birth": "1988-08-08",
+      "gender": "U"
+    }
+  }
+]

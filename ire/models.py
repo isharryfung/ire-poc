@@ -130,6 +130,15 @@ class NormalizedIdentity:
     email: str | None = None
     phone: str | None = None
     date_of_birth: str | None = None
+    hkid: str | None = None
+    emplid: str | None = None
+    student_id: str | None = None
+    alumni_id: str | None = None
+    phone_digits: str | None = None
+    phone_last8: str | None = None
+    gender: str | None = None
+    address: str | None = None
+    address_tokens: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -178,6 +187,7 @@ class GoldenRecord:
     created_at: str
     updated_at: str
     superseded_by: str | None = None
+    version: int = 1
 
     def __post_init__(self) -> None:
         _require_utc_z_timestamp("created_at", self.created_at)
@@ -191,6 +201,7 @@ class GoldenRecord:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "superseded_by": self.superseded_by,
+            "version": self.version,
         }
 
     @classmethod
@@ -205,6 +216,7 @@ class GoldenRecord:
             created_at=data["created_at"],
             updated_at=data["updated_at"],
             superseded_by=data.get("superseded_by"),
+            version=int(data.get("version", 1)),
         )
 
 
@@ -391,6 +403,8 @@ class ManualReviewTask:
     created_at: str
     updated_at: str
     assigned_to: str | None = None
+    safety_flags: list[str] = field(default_factory=list)
+    suggested_decision: str | None = None
 
     def __post_init__(self) -> None:
         _require_utc_z_timestamp("created_at", self.created_at)
@@ -406,6 +420,8 @@ class ManualReviewTask:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "assigned_to": self.assigned_to,
+            "safety_flags": self.safety_flags,
+            "suggested_decision": self.suggested_decision,
         }
 
     @classmethod
@@ -419,6 +435,8 @@ class ManualReviewTask:
             created_at=data["created_at"],
             updated_at=data["updated_at"],
             assigned_to=data.get("assigned_to"),
+            safety_flags=list(data.get("safety_flags", [])),
+            suggested_decision=data.get("suggested_decision"),
         )
 
 
