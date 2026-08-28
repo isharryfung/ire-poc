@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "protect_manual_lock": true,
+  "field_strategies": {
+    "email": "most_recent_verified",
+    "phone": "highest_trust_active",
+    "name": "most_recent_verified",
+    "address": "highest_trust_active"
+  }
+}
