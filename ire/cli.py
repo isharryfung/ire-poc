@@ -10,10 +10,25 @@ import uvicorn
 
 from . import __version__
 from .config import load_config
-from .exceptions import ConfigurationError, InvalidReviewDecisionError, NotFoundError, RepositoryError
+from .exceptions import (
+    ConfigurationError,
+    InvalidReviewDecisionError,
+    NotFoundError,
+    RepositoryError,
+    ValidationError,
+)
+from .golden_merge import (
+    compare_golden_records,
+    merge_golden_records,
+    preview_golden_merge,
+    rollback_merge,
+    rollback_merge_preview,
+)
 from .json_repository import JsonFileRepository
+from .primary_override import override_primary_value
 from .review import approve_review, list_review_tasks, reject_review, show_review_task
 from .service import preview_record, process_batch, process_record
+from .timeline import get_golden_timeline
 
 
 EXIT_SUCCESS = 0
@@ -95,6 +110,48 @@ def build_parser() -> argparse.ArgumentParser:
     golden_show.add_argument("golden_id")
     golden_show.add_argument("--root", default="data")
 
+    golden_compare = golden_sub.add_parser("compare", help="Compare two golden records")
+    golden_compare.add_argument("left_id")
+    golden_compare.add_argument("right_id")
+    golden_compare.add_argument("--root", default="data")
+
+    golden_merge_preview = golden_sub.add_parser("merge-preview", help="Preview a golden-to-golden merge")
+    golden_merge_preview.add_argument("--survivor", required=True)
+    golden_merge_preview.add_argument("--loser", required=True)
+    golden_merge_preview.add_argument("--root", default="data")
+
+    golden_merge = golden_sub.add_parser("merge", help="Merge one golden record into another")
+    golden_merge.add_argument("--survivor", required=True)
+    golden_merge.add_argument("--loser", required=True)
+    golden_merge.add_argument("--actor", required=True)
+    golden_merge.add_argument("--reason", required=True)
+    golden_merge.add_argument("--expected-survivor-version", type=int, default=None)
+    golden_merge.add_argument("--expected-loser-version", type=int, default=None)
+    golden_merge.add_argument("--root", default="data")
+
+    golden_override = golden_sub.add_parser("override-primary", help="Override the primary value for a field")
+    golden_override.add_argument("golden_id")
+    golden_override.add_argument("--field", required=True)
+    golden_override.add_argument("--value-id", required=True)
+    golden_override.add_argument("--actor", required=True)
+    golden_override.add_argument("--reason", required=True)
+    golden_override.add_argument("--root", default="data")
+
+    golden_rollback_preview = golden_sub.add_parser("rollback-preview", help="Preview a merge rollback")
+    golden_rollback_preview.add_argument("merge_id")
+    golden_rollback_preview.add_argument("--root", default="data")
+
+    golden_rollback = golden_sub.add_parser("rollback", help="Roll back a merge")
+    golden_rollback.add_argument("merge_id")
+    golden_rollback.add_argument("--actor", required=True)
+    golden_rollback.add_argument("--reason", required=True)
+    golden_rollback.add_argument("--root", default="data")
+
+    golden_timeline = golden_sub.add_parser("timeline", help="Show a golden record timeline")
+    golden_timeline.add_argument("golden_id")
+    golden_timeline.add_argument("--category", default=None)
+    golden_timeline.add_argument("--root", default="data")
+
     web_parser = subparsers.add_parser("web", help="Run the FastAPI demo server")
     web_parser.add_argument("--host", default="127.0.0.1")
     web_parser.add_argument("--port", type=int, default=8000)
@@ -106,6 +163,58 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _print_json(payload) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+
+
+def _field_value_summary(value) -> dict:
+    return {
+        "value_id": value.value_id,
+        "value": value.normalized_value or value.raw_value,
+        "source_system": value.source_system,
+        "source_record_id": value.source_record_id,
+        "trust_score": value.trust_score,
+        "is_primary": value.is_primary,
+        "manual_lock": value.manual_lock,
+        "is_active": value.is_active,
+    }
+
+
+def _compare_payload(result) -> dict:
+    return {
+        "left_id": result.left_id,
+        "right_id": result.right_id,
+        "can_merge": result.can_merge,
+        "block_reasons": list(result.block_reasons),
+        "strong_identifier_conflicts": list(result.strong_identifier_conflicts),
+        "dob_conflict": result.dob_conflict,
+        "fields": [
+            {
+                "field_name": comparison.field_name,
+                "left_value": comparison.left_value,
+                "right_value": comparison.right_value,
+                "status": comparison.status,
+                "is_strong_identifier": comparison.is_strong_identifier,
+                "is_dob": comparison.is_dob,
+            }
+            for comparison in result.fields
+        ],
+    }
+
+
+def _merge_preview_payload(result) -> dict:
+    return {
+        "survivor_id": result.survivor_id,
+        "loser_id": result.loser_id,
+        "can_merge": result.can_merge,
+        "block_reasons": list(result.block_reasons),
+        "merged_fields": {
+            field_name: [_field_value_summary(value) for value in values]
+            for field_name, values in result.merged_fields.items()
+        },
+        "resulting_primary_values": {
+            field_name: value.value_id for field_name, value in result.resulting_primary_values.items()
+        },
+        "moved_link_ids": list(result.moved_link_ids),
+    }
 
 
 def _load_runtime(config_dir: str, root: str):
@@ -227,6 +336,97 @@ def main(argv: list[str] | None = None) -> int:
             _print_json(golden.to_dict())
             return EXIT_SUCCESS
 
+        if args.command == "golden" and args.golden_command == "compare":
+            repo = JsonFileRepository(args.root)
+            repo.initialize_storage()
+            result = compare_golden_records(args.left_id, args.right_id, repo)
+            _print_json(_compare_payload(result))
+            return EXIT_SUCCESS
+
+        if args.command == "golden" and args.golden_command == "merge-preview":
+            repo = JsonFileRepository(args.root)
+            repo.initialize_storage()
+            result = preview_golden_merge(args.survivor, args.loser, repo)
+            _print_json(_merge_preview_payload(result))
+            return EXIT_SUCCESS
+
+        if args.command == "golden" and args.golden_command == "merge":
+            repo = JsonFileRepository(args.root)
+            repo.initialize_storage()
+            result = merge_golden_records(
+                args.survivor,
+                args.loser,
+                args.actor,
+                args.reason,
+                repo,
+                args.expected_survivor_version,
+                args.expected_loser_version,
+            )
+            _print_json(
+                {
+                    "merge_id": result.merge_event.merge_id,
+                    "survivor": result.survivor.to_dict(),
+                    "loser": result.loser.to_dict(),
+                    "moved_link_ids": list(result.moved_link_ids),
+                }
+            )
+            return EXIT_SUCCESS
+
+        if args.command == "golden" and args.golden_command == "override-primary":
+            repo = JsonFileRepository(args.root)
+            repo.initialize_storage()
+            result = override_primary_value(
+                args.golden_id, args.field, args.value_id, args.actor, args.reason, repo
+            )
+            _print_json(
+                {
+                    "field_name": result.field_name,
+                    "previous_primary_value_id": result.previous_primary_value_id,
+                    "new_primary_value_id": result.new_primary_value_id,
+                    "override_id": result.override_event.override_id,
+                    "golden_record": result.golden_record.to_dict(),
+                }
+            )
+            return EXIT_SUCCESS
+
+        if args.command == "golden" and args.golden_command == "rollback-preview":
+            repo = JsonFileRepository(args.root)
+            repo.initialize_storage()
+            result = rollback_merge_preview(args.merge_id, repo)
+            _print_json(
+                {
+                    "merge_id": result.merge_id,
+                    "survivor_id": result.survivor_id,
+                    "loser_id": result.loser_id,
+                    "can_rollback": result.can_rollback,
+                    "block_reasons": list(result.block_reasons),
+                    "restored_link_ids": list(result.restored_link_ids),
+                }
+            )
+            return EXIT_SUCCESS
+
+        if args.command == "golden" and args.golden_command == "rollback":
+            repo = JsonFileRepository(args.root)
+            repo.initialize_storage()
+            result = rollback_merge(args.merge_id, args.actor, args.reason, repo)
+            _print_json(
+                {
+                    "rollback_id": result.rollback_event.rollback_id,
+                    "merge_id": result.rollback_event.merge_id,
+                    "survivor": result.survivor.to_dict(),
+                    "loser": result.loser.to_dict(),
+                    "restored_link_ids": list(result.restored_link_ids),
+                }
+            )
+            return EXIT_SUCCESS
+
+        if args.command == "golden" and args.golden_command == "timeline":
+            repo = JsonFileRepository(args.root)
+            repo.initialize_storage()
+            entries = get_golden_timeline(args.golden_id, repo, args.category)
+            _print_json([entry.to_dict() for entry in entries])
+            return EXIT_SUCCESS
+
         if args.command == "web":
             from .web import create_app
 
@@ -245,6 +445,9 @@ def main(argv: list[str] | None = None) -> int:
     except RepositoryError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_STORAGE_ERROR
+    except ValidationError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_VALIDATION_ERROR
     except (ValueError, json.JSONDecodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_VALIDATION_ERROR
