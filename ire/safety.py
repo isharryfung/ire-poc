@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from .candidate_generation import CandidateBlock
 from .config import IREConfig
@@ -8,6 +9,52 @@ from .deterministic import DeterministicResult
 from .enums import GoldenRecordStatus, LinkStatus, SafetyFlag, SourceTrustLevel
 from .models import RecordLink, SourceRecord, SourceSystem
 from .scoring import ScoringResult
+
+
+SENSITIVE_FIELDS = ("hkid", "phone", "email")
+
+
+def mask_hkid(value: str | None) -> str | None:
+    if not value:
+        return value
+    cleaned = str(value)
+    if len(cleaned) <= 2:
+        return cleaned
+    return f"{cleaned[0]}{'*' * max(1, len(cleaned) - 2)}{cleaned[-1]}"
+
+
+def mask_phone(value: str | None) -> str | None:
+    if not value:
+        return value
+    digits = "".join(ch for ch in str(value) if ch.isdigit())
+    if len(digits) <= 4:
+        return digits
+    return f"****{digits[-4:]}"
+
+
+def mask_email(value: str | None) -> str | None:
+    if not value or "@" not in str(value):
+        return value
+    local, domain = str(value).split("@", 1)
+    if len(local) <= 2:
+        masked_local = f"{local[:1]}*"
+    else:
+        masked_local = f"{local[:1]}{'*' * max(1, len(local) - 2)}{local[-1]}"
+    return f"{masked_local}@{domain}"
+
+
+def mask_value(field_name: str, value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return [mask_value(field_name, item) for item in value]
+    if field_name == "hkid":
+        return mask_hkid(str(value))
+    if field_name == "phone":
+        return mask_phone(str(value))
+    if field_name == "email":
+        return mask_email(str(value))
+    return value
 
 
 @dataclass

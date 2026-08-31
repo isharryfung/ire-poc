@@ -7,6 +7,7 @@ from typing import Any
 
 from .enums import (
     GoldenRecordStatus,
+    HistoryEventType,
     IngestStatus,
     LinkStatus,
     MatchDecisionType,
@@ -19,7 +20,7 @@ from .enums import (
     SourceTrustLevel,
 )
 from .exceptions import ValidationError
-from .ids import utc_now_iso
+from .ids import new_field_value_id, utc_now_iso
 
 
 def _require_probability(name: str, value: float) -> None:
@@ -162,6 +163,7 @@ class GoldenFieldValue:
     observed_at: str
     valid_from: str | None = None
     valid_to: str | None = None
+    value_id: str = field(default_factory=new_field_value_id)
 
     def __post_init__(self) -> None:
         _require_probability("trust_score", self.trust_score)
@@ -176,7 +178,10 @@ class GoldenFieldValue:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "GoldenFieldValue":
-        return cls(**data)
+        payload = dict(data)
+        if not payload.get("value_id"):
+            payload["value_id"] = new_field_value_id()
+        return cls(**payload)
 
 
 @dataclass(frozen=True)
@@ -188,6 +193,7 @@ class GoldenRecord:
     updated_at: str
     superseded_by: str | None = None
     version: int = 1
+    merged_from: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         _require_utc_z_timestamp("created_at", self.created_at)
@@ -202,6 +208,7 @@ class GoldenRecord:
             "updated_at": self.updated_at,
             "superseded_by": self.superseded_by,
             "version": self.version,
+            "merged_from": list(self.merged_from),
         }
 
     @classmethod
@@ -217,6 +224,7 @@ class GoldenRecord:
             updated_at=data["updated_at"],
             superseded_by=data.get("superseded_by"),
             version=int(data.get("version", 1)),
+            merged_from=list(data.get("merged_from", [])),
         )
 
 
@@ -529,4 +537,122 @@ class AuditEvent:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AuditEvent":
+        return cls(**data)
+
+
+@dataclass(frozen=True)
+class PrimaryOverrideEvent:
+    override_id: str
+    golden_record_id: str
+    field_name: str
+    value_id: str
+    previous_value_id: str | None
+    actor: str
+    reason: str
+    timestamp: str
+    event_type: str = HistoryEventType.PRIMARY_OVERRIDE.value
+
+    def __post_init__(self) -> None:
+        _require_utc_z_timestamp("timestamp", self.timestamp)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "PrimaryOverrideEvent":
+        payload = dict(data)
+        payload.setdefault("event_type", HistoryEventType.PRIMARY_OVERRIDE.value)
+        return cls(**payload)
+
+
+@dataclass(frozen=True)
+class MergeEvent:
+    merge_id: str
+    survivor_id: str
+    loser_id: str
+    actor: str
+    reason: str
+    timestamp: str
+    survivor_before: dict[str, Any]
+    survivor_after: dict[str, Any]
+    loser_before: dict[str, Any]
+    links_before: list[dict[str, Any]]
+    rolled_back_by: str | None = None
+    event_type: str = HistoryEventType.GOLDEN_MERGE.value
+
+    def __post_init__(self) -> None:
+        _require_utc_z_timestamp("timestamp", self.timestamp)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "merge_id": self.merge_id,
+            "survivor_id": self.survivor_id,
+            "loser_id": self.loser_id,
+            "actor": self.actor,
+            "reason": self.reason,
+            "timestamp": self.timestamp,
+            "survivor_before": self.survivor_before,
+            "survivor_after": self.survivor_after,
+            "loser_before": self.loser_before,
+            "links_before": list(self.links_before),
+            "rolled_back_by": self.rolled_back_by,
+            "event_type": self.event_type,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "MergeEvent":
+        return cls(
+            merge_id=data["merge_id"],
+            survivor_id=data["survivor_id"],
+            loser_id=data["loser_id"],
+            actor=data["actor"],
+            reason=data["reason"],
+            timestamp=data["timestamp"],
+            survivor_before=dict(data["survivor_before"]),
+            survivor_after=dict(data["survivor_after"]),
+            loser_before=dict(data["loser_before"]),
+            links_before=list(data.get("links_before", [])),
+            rolled_back_by=data.get("rolled_back_by"),
+            event_type=data.get("event_type", HistoryEventType.GOLDEN_MERGE.value),
+        )
+
+
+@dataclass(frozen=True)
+class RollbackEvent:
+    rollback_id: str
+    merge_id: str
+    survivor_id: str
+    loser_id: str
+    actor: str
+    reason: str
+    timestamp: str
+    event_type: str = HistoryEventType.MERGE_ROLLBACK.value
+
+    def __post_init__(self) -> None:
+        _require_utc_z_timestamp("timestamp", self.timestamp)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RollbackEvent":
+        payload = dict(data)
+        payload.setdefault("event_type", HistoryEventType.MERGE_ROLLBACK.value)
+        return cls(**payload)
+
+
+@dataclass(frozen=True)
+class TimelineEntry:
+    timestamp: str
+    category: str
+    event_type: str
+    summary: str
+    actor: str
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TimelineEntry":
         return cls(**data)

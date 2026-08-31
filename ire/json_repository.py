@@ -2,12 +2,24 @@ from __future__ import annotations
 
 import json
 import shutil
+from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 from .exceptions import DuplicateSourceRecordError, RepositoryError
-from .models import AuditEvent, GoldenRecord, ManualReviewTask, MatchRun, MergeHistoryEvent, RecordLink, SourceRecord
+from .models import (
+    AuditEvent,
+    GoldenRecord,
+    ManualReviewTask,
+    MatchRun,
+    MergeEvent,
+    MergeHistoryEvent,
+    PrimaryOverrideEvent,
+    RecordLink,
+    RollbackEvent,
+    SourceRecord,
+)
 
 
 class JsonFileRepository:
@@ -30,6 +42,9 @@ class JsonFileRepository:
         self.match_runs_path = self.events_dir / "match_runs.jsonl"
         self.merge_history_path = self.events_dir / "merge_history.jsonl"
         self.audit_log_path = self.events_dir / "audit_log.jsonl"
+        self.merge_events_path = self.events_dir / "merge_events.jsonl"
+        self.primary_overrides_path = self.events_dir / "primary_overrides.jsonl"
+        self.merge_rollbacks_path = self.events_dir / "merge_rollbacks.jsonl"
 
     def initialize_storage(self) -> None:
         self.state_dir.mkdir(parents=True, exist_ok=True)
@@ -42,6 +57,9 @@ class JsonFileRepository:
             self.match_runs_path,
             self.merge_history_path,
             self.audit_log_path,
+            self.merge_events_path,
+            self.primary_overrides_path,
+            self.merge_rollbacks_path,
         ):
             if not jsonl_path.exists():
                 jsonl_path.write_text("", encoding="utf-8")
@@ -185,3 +203,101 @@ class JsonFileRepository:
 
     def append_audit_event(self, event: AuditEvent) -> None:
         self._append_jsonl(self.audit_log_path, event.to_dict())
+
+    # --- Phase 1.2: single-entity upserts -------------------------------
+
+    def save_golden_record(self, record: GoldenRecord) -> None:
+        records = self.load_golden_records()
+        replaced = False
+        updated: list[GoldenRecord] = []
+        for existing in records:
+            if existing.golden_record_id == record.golden_record_id:
+                updated.append(record)
+                replaced = True
+            else:
+                updated.append(existing)
+        if not replaced:
+            updated.append(record)
+        self.save_golden_records(updated)
+
+    def save_record_link(self, link: RecordLink) -> None:
+        links = self.load_record_links()
+        replaced = False
+        updated: list[RecordLink] = []
+        for existing in links:
+            if existing.link_id == link.link_id:
+                updated.append(link)
+                replaced = True
+            else:
+                updated.append(existing)
+        if not replaced:
+            updated.append(link)
+        self.save_record_links(updated)
+
+    # --- Phase 1.2: merge / override / rollback event streams ------------
+
+    def save_merge_event(self, event: MergeEvent) -> None:
+        self._append_jsonl(self.merge_events_path, event.to_dict())
+
+    def load_merge_events(self) -> list[MergeEvent]:
+        return self._load_typed_jsonl(self.merge_events_path, MergeEvent.from_dict)
+
+    def load_merge_event(self, merge_id: str) -> MergeEvent | None:
+        for event in self.load_merge_events():
+            if event.merge_id == merge_id:
+                return event
+        return None
+
+    def save_primary_override_event(self, event: PrimaryOverrideEvent) -> None:
+        self._append_jsonl(self.primary_overrides_path, event.to_dict())
+
+    def load_primary_override_events(self) -> list[PrimaryOverrideEvent]:
+        return self._load_typed_jsonl(self.primary_overrides_path, PrimaryOverrideEvent.from_dict)
+
+    def save_rollback_event(self, event: RollbackEvent) -> None:
+        self._append_jsonl(self.merge_rollbacks_path, event.to_dict())
+
+    def load_rollback_events(self) -> list[RollbackEvent]:
+        return self._load_typed_jsonl(self.merge_rollbacks_path, RollbackEvent.from_dict)
+
+    def find_rollback_for_merge(self, merge_id: str) -> RollbackEvent | None:
+        for event in self.load_rollback_events():
+            if event.merge_id == merge_id:
+                return event
+        return None
+
+    # --- Phase 1.2: transactional snapshot/restore ----------------------
+
+    _SNAPSHOT_ATTRS = (
+        "golden_records_path",
+        "record_links_path",
+        "review_tasks_path",
+        "merge_history_path",
+        "audit_log_path",
+        "merge_events_path",
+        "primary_overrides_path",
+        "merge_rollbacks_path",
+    )
+
+    @contextmanager
+    def atomic_update(self) -> Iterator["JsonFileRepository"]:
+        """Snapshot mutable storage files and restore them if the block raises.
+
+        This gives multi-file writes all-or-nothing semantics for the
+        single-writer Phase 1 storage model: any partially applied state or
+        appended events are rolled back to the pre-transaction snapshot.
+        """
+        snapshots: dict[Path, str | None] = {}
+        for attr in self._SNAPSHOT_ATTRS:
+            path = getattr(self, attr)
+            snapshots[path] = path.read_text(encoding="utf-8") if path.exists() else None
+        try:
+            yield self
+        except Exception:
+            for path, content in snapshots.items():
+                if content is None:
+                    if path.exists():
+                        path.unlink()
+                else:
+                    path.write_text(content, encoding="utf-8")
+            raise
