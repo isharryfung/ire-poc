@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% import "macros/components.html" as comp %}
+{% block title %}Activity Log · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Operations', 'url': None}, {'label': 'Activity Log', 'url': None}]) }}{% endblock %}
+{% block page_header %}{{ comp.page_header('Activity Log', 'Read-only operational event history synthesized from audit and merge event storage.') }}{% endblock %}
+{% block content %}
+<section class="surface-card mb-4">
+  <div class="surface-card__body">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-lg-4"><label class="form-label" for="event_type">Event Type</label><select class="form-select" id="event_type" name="event_type"><option value="">All event types</option>{% for value in event_types %}<option value="{{ value }}" {% if filters.event_type == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
+      <div class="col-lg-5"><label class="form-label" for="q">Search</label><input class="form-control" id="q" name="q" value="{{ filters.q }}" placeholder="Entity or event type"></div>
+      <div class="col-lg-3 d-flex gap-2"><button class="btn btn-primary" type="submit">Apply Filters</button><a class="btn btn-outline-secondary" href="/activity">Reset</a></div>
+    </form>
+    <div class="helper-text mt-3">{{ result_count }} result(s)</div>
+  </div>
+</section>
+
+{% if events %}
+<section class="surface-card">
+  <div class="surface-card__body">
+    <div class="table-shell"><div class="table-responsive"><table class="table"><thead><tr><th>Timestamp</th><th>Event Type</th><th>Entity Type</th><th>Entity</th><th>Actor</th><th>Result</th><th>Details</th></tr></thead><tbody>{% for event in events %}<tr><td>{{ event.timestamp }}</td><td>{{ comp.status_badge(event.event_type) }}</td><td>{{ event.entity_type or '—' }}</td><td>{{ event.entity or '—' }}</td><td>{{ event.actor or 'system' }}</td><td>{{ event.result or '—' }}</td><td>{{ event.details or '—' }}</td></tr>{% endfor %}</tbody></table></div></div>
+  </div>
+</section>
+{% else %}
+  {{ comp.empty_state('No activity events found.', 'Activity entries will appear after ingestion, review, and merge events are recorded.') }}
+{% endif %}
+{% endblock %}

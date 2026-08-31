@@ -18,5 +18,5 @@ def dashboard(request: Request, runtime: WebRuntime = Depends(get_runtime)):
     return _templates(request).TemplateResponse(
         request,
         "dashboard.html",
-        {"snapshot": dashboard_snapshot(runtime.repo)},
+        {"snapshot": dashboard_snapshot(runtime.repo), "current_path": request.url.path},
     )

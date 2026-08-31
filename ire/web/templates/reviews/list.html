@@ -1,31 +1,63 @@
 {% extends "base.html" %}
-{% block title %}Review Queue · IRE Demo{% endblock %}
+{% import "macros/components.html" as comp %}
+{% block title %}Review Queue · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Operations', 'url': None}, {'label': 'Review Queue', 'url': None}]) }}{% endblock %}
+{% block page_header %}{{ comp.page_header('Review Queue', 'Analyst workspace for unresolved records that require manual review before merge or rejection.') }}{% endblock %}
 {% block content %}
-<h1 class="mb-4">Review Queue</h1>
-<form class="row g-3 mb-4" method="get">
-  <div class="col-md-2"><input class="form-control" name="status" placeholder="Status" value="{{ filters.status }}"></div>
-  <div class="col-md-2"><input class="form-control" name="source_system" placeholder="Source system" value="{{ filters.source_system }}"></div>
-  <div class="col-md-2"><input class="form-control" name="min_confidence" placeholder="Min confidence" value="{{ filters.min_confidence }}"></div>
-  <div class="col-md-2"><input class="form-control" name="max_confidence" placeholder="Max confidence" value="{{ filters.max_confidence }}"></div>
-  <div class="col-md-2"><input class="form-control" name="reason_code" placeholder="Reason code" value="{{ filters.reason_code }}"></div>
-  <div class="col-md-2"><button class="btn btn-outline-primary w-100" type="submit">Filter</button></div>
-</form>
+<div class="row g-3 mb-4">
+  <div class="col-md-6 col-xl-3">{{ comp.kpi_card('Pending Count', pending_count, color='warning') }}</div>
+  <div class="col-md-6 col-xl-3">{{ comp.kpi_card('High-Risk Count', high_risk_count, color='danger') }}</div>
+</div>
+
+<section class="surface-card mb-4">
+  <div class="surface-card__body">
+    <form class="row g-3 align-items-end" method="get">
+      <div class="col-lg-2"><label class="form-label" for="status">Status</label><input class="form-control" id="status" name="status" value="{{ filters.status }}"></div>
+      <div class="col-lg-2"><label class="form-label" for="source_system">Source System</label><input class="form-control" id="source_system" name="source_system" value="{{ filters.source_system }}"></div>
+      <div class="col-lg-2"><label class="form-label" for="min_confidence">Min Confidence</label><input class="form-control" id="min_confidence" name="min_confidence" value="{{ filters.min_confidence }}"></div>
+      <div class="col-lg-2"><label class="form-label" for="max_confidence">Max Confidence</label><input class="form-control" id="max_confidence" name="max_confidence" value="{{ filters.max_confidence }}"></div>
+      <div class="col-lg-2"><label class="form-label" for="reason_code">Reason Code</label><input class="form-control" id="reason_code" name="reason_code" value="{{ filters.reason_code }}"></div>
+      <div class="col-lg-2"><label class="form-label" for="search">Search</label><input class="form-control" id="search" name="search" value="{{ filters.search }}"></div>
+      <div class="col-12 d-flex gap-2"><button class="btn btn-primary" type="submit">Apply Filters</button><a class="btn btn-outline-secondary" href="/reviews">Reset</a></div>
+    </form>
+  </div>
+</section>
+
 {% if reviews %}
-<table class="table table-striped">
-  <thead><tr><th>Task</th><th>Source</th><th>Confidence</th><th>Suggested</th><th>Reason</th><th>Status</th><th>Created</th></tr></thead>
-  <tbody>
-    {% for item in reviews %}
-    <tr>
-      <td><a href="/reviews/{{ item.task_id }}">{{ item.task_id }}</a></td>
-      <td>{{ item.source_system }} / {{ item.source_pk }}</td>
-      <td>{{ '%.2f'|format(item.confidence) }}</td>
-      <td>{{ item.suggested_candidate or '—' }}</td>
-      <td>{{ item.reason_code or item.reason }}</td>
-      <td>{{ item.status }}</td>
-      <td>{{ item.created_at }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}<p class="text-muted">No review tasks found.</p>{% endif %}
+<section class="surface-card">
+  <div class="surface-card__body">
+    <div class="table-shell">
+      <div class="table-responsive">
+        <table class="table">
+          <thead><tr><th>Priority</th><th>Task ID</th><th>Source</th><th>Candidate</th><th>Confidence</th><th>Reason</th><th>Status</th><th>Age</th></tr></thead>
+          <tbody>
+            {% for item in reviews %}
+              <tr>
+                <td>
+                  {% if item.safety_flags %}
+                    <span class="priority-pill priority-high">High Risk</span>
+                  {% elif item.reason == 'MANUAL_REVIEW' %}
+                    <span class="priority-pill priority-medium">Manual Review</span>
+                  {% else %}
+                    <span class="priority-pill priority-low">Standard</span>
+                  {% endif %}
+                </td>
+                <td><a href="/reviews/{{ item.task_id }}">{{ item.task_id }}</a></td>
+                <td>{{ item.source_system or '—' }} / {{ item.source_pk or '—' }}</td>
+                <td>{{ item.suggested_candidate or '—' }}</td>
+                <td>{{ comp.confidence_bar(item.confidence) }}</td>
+                <td>{{ item.reason_code or item.reason }}</td>
+                <td>{{ comp.status_badge(item.status) }}</td>
+                <td>{{ item.created_at }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+{% else %}
+  {{ comp.empty_state('No review tasks found.', 'The queue is currently empty for the selected filters.') }}
+{% endif %}
 {% endblock %}

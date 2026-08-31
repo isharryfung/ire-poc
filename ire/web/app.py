@@ -4,14 +4,14 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from ire import __version__
 from ire.exceptions import ConfigurationError, InvalidReviewDecisionError, RepositoryError, ValidationError
 from ire.web.dependencies import STATIC_DIR, TEMPLATES_DIR, WebRuntime, create_runtime
-from ire.web.routers import api, dashboard, golden, records, reviews
+from ire.web.routers import api, configuration, dashboard, golden, history, records, reviews
 
 
 def create_app(
@@ -60,9 +60,11 @@ def create_app(
         return _error_response(request, 500, "UNEXPECTED_ERROR", "An unexpected demo error occurred.")
 
     app.include_router(api.router)
+    app.include_router(configuration.router)
     app.include_router(dashboard.router)
     app.include_router(records.router)
     app.include_router(golden.router)
+    app.include_router(history.router)
     app.include_router(reviews.router)
     return app
 
@@ -76,4 +78,4 @@ def _error_response(request: Request, status_code: int, code: str, message: str,
         return JSONResponse(status_code=status_code, content=payload)
     template_name = {404: "errors/404.html", 409: "errors/409.html", 500: "errors/500.html"}.get(status_code, "errors/error.html")
     templates: Jinja2Templates = request.app.state.templates
-    return templates.TemplateResponse(request, template_name, {"status_code": status_code, "code": code, "message": message}, status_code=status_code)
+    return templates.TemplateResponse(request, template_name, {"status_code": status_code, "code": code, "message": message, "current_path": request.url.path}, status_code=status_code)

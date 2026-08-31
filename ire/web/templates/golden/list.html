@@ -1,26 +1,63 @@
 {% extends "base.html" %}
-{% block title %}Golden Records · IRE Demo{% endblock %}
+{% import "macros/components.html" as comp %}
+{% block title %}Golden Records · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Identity Management', 'url': None}, {'label': 'Golden Records', 'url': None}]) }}{% endblock %}
+{% block page_header %}{{ comp.page_header('Golden Records', 'Search the current golden record directory and review masked primary identity values.') }}{% endblock %}
 {% block content %}
-<h1 class="mb-4">Golden Records</h1>
-{% if goldens %}
-<div class="table-responsive">
-  <table class="table table-striped">
-    <thead><tr><th>ID</th><th>Status</th><th>Version</th><th>Primary Values</th></tr></thead>
-    <tbody>
-      {% for golden in goldens %}
-      <tr>
-        <td><a href="/golden-records/{{ golden.golden_record_id }}">{{ golden.golden_record_id }}</a></td>
-        <td>{{ golden.status }}</td>
-        <td>{{ golden.version }}</td>
-        <td>
-          {% for field_name, value in golden.primary_values.items() %}
-          <div><strong>{{ field_name }}</strong>: {{ value.raw_value }}</div>
+<section class="surface-card mb-4">
+  <div class="surface-card__body">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-lg-5"><label class="form-label" for="q">Search</label><input class="form-control" id="q" name="q" value="{{ filters.q }}" placeholder="Golden ID, name, or email"></div>
+      <div class="col-lg-3">
+        <label class="form-label" for="status">Status</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">All statuses</option>
+          {% for value in ['ACTIVE', 'INACTIVE', 'SUPERSEDED', 'MERGED'] %}
+            <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ value }}</option>
           {% endfor %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% else %}<p class="text-muted">No Golden Records yet.</p>{% endif %}
+        </select>
+      </div>
+      <div class="col-lg-4 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">Apply Filters</button>
+        <a class="btn btn-outline-secondary" href="/golden-records">Reset</a>
+      </div>
+    </form>
+    <div class="helper-text mt-3">{{ result_count }} result(s)</div>
+  </div>
+</section>
+
+{% if goldens %}
+<section class="surface-card">
+  <div class="surface-card__body">
+    <div class="table-shell">
+      <div class="table-responsive">
+        <table class="table">
+          <thead><tr><th>Golden ID</th><th>Primary Name</th><th>Primary Email</th><th>Link Count</th><th>Status</th><th>Version</th><th>Last Updated</th></tr></thead>
+          <tbody>
+            {% for golden in goldens %}
+              {% set first_name = golden.primary_values.get('first_name', {}).get('raw_value') %}
+              {% set last_name = golden.primary_values.get('last_name', {}).get('raw_value') %}
+              <tr>
+                <td><a href="/golden-records/{{ golden.golden_record_id }}">{{ golden.golden_record_id }}</a></td>
+                <td>{{ ((first_name or '') ~ ' ' ~ (last_name or '')).strip() or '—' }}</td>
+                <td>{{ golden.primary_values.get('email', {}).get('raw_value') or '—' }}</td>
+                <td>{{ golden.active_record_links|length }}</td>
+                <td>{{ comp.status_badge(golden.status) }}</td>
+                <td>{{ golden.version }}</td>
+                <td>{{ golden.updated_at }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+{% else %}
+  {% if filters.q or filters.status %}
+    {{ comp.empty_state('No matching golden records.', 'Try broadening the search text or clearing the status filter.', '/golden-records', 'Clear Filters') }}
+  {% else %}
+    {{ comp.empty_state('No Golden Records yet.', 'Process an identity record to create the first golden record.', '/identities/new', 'Submit Identity') }}
+  {% endif %}
+{% endif %}
 {% endblock %}

@@ -15,7 +15,11 @@ def _templates(request: Request) -> Jinja2Templates:
 
 def _review_detail_response(request: Request, task_id: str, runtime: WebRuntime, message: str | None = None):
     detail = runtime.show_review_task_fn(task_id, runtime.repo)
-    return _templates(request).TemplateResponse(request, "reviews/detail.html", {"review": present_review_detail(detail, runtime.repo), "message": message})
+    return _templates(request).TemplateResponse(
+        request,
+        "reviews/detail.html",
+        {"review": present_review_detail(detail, runtime.repo), "message": message, "current_path": request.url.path},
+    )
 
 
 @router.get("/reviews")
@@ -26,20 +30,44 @@ def review_list(
     min_confidence: float | None = Query(default=None),
     max_confidence: float | None = Query(default=None),
     reason_code: str | None = Query(default=None),
+    search: str | None = Query(default=None),
     runtime: WebRuntime = Depends(get_runtime),
 ):
+    rows = list_reviews(
+        runtime.repo,
+        status=status,
+        source_system=source_system,
+        min_confidence=min_confidence,
+        max_confidence=max_confidence,
+        reason_code=reason_code,
+    )
+    if search:
+        s = search.lower()
+        rows = [
+            r
+            for r in rows
+            if s in r["task_id"].lower()
+            or s in (r["source_record_id"] or "").lower()
+            or s in (r["suggested_candidate"] or "").lower()
+        ]
+    pending_count = sum(1 for row in rows if row["status"] == "OPEN")
+    high_risk_count = sum(1 for row in rows if row.get("safety_flags"))
     return _templates(request).TemplateResponse(
         request,
         "reviews/list.html",
         {
-            "reviews": list_reviews(runtime.repo, status=status, source_system=source_system, min_confidence=min_confidence, max_confidence=max_confidence, reason_code=reason_code),
+            "reviews": rows,
+            "pending_count": pending_count,
+            "high_risk_count": high_risk_count,
             "filters": {
                 "status": status or "",
                 "source_system": source_system or "",
                 "min_confidence": "" if min_confidence is None else min_confidence,
                 "max_confidence": "" if max_confidence is None else max_confidence,
                 "reason_code": reason_code or "",
+                "search": search or "",
             },
+            "current_path": request.url.path,
         },
     )
 

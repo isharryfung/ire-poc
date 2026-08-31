@@ -1,71 +1,147 @@
 {% extends "base.html" %}
-{% block title %}Dashboard · IRE Demo{% endblock %}
+{% import "macros/components.html" as comp %}
+{% block title %}Dashboard · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': None}]) }}{% endblock %}
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Identity Resolution Dashboard</h1>
+    <p class="page-header__description">Operational overview of record ingestion, match decisions, golden record growth, and analyst work queues.</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-primary" href="/identities/new">Resolve Identity</a>
+    <a class="btn btn-outline-primary" href="/identities/batch">Upload Batch</a>
+  </div>
+</div>
+{% endblock %}
 {% block content %}
-<h1 class="mb-4">Phase 1.1 Demo Dashboard</h1>
 <div class="row g-3 mb-4">
-  {% for key, value in snapshot.metrics.items() %}
-  <div class="col-md-4">
-    <div class="card h-100">
-      <div class="card-body">
-        <div class="text-muted text-uppercase small">{{ key.replace('_', ' ') }}</div>
-        <div class="display-6">{{ value }}</div>
+  <div class="col-sm-6 col-xl-4">{{ comp.kpi_card('Active Golden Records', snapshot.metrics.active_golden_records, color='info') }}</div>
+  <div class="col-sm-6 col-xl-4">{{ comp.kpi_card('Source Records Processed', snapshot.metrics.source_records_processed, color='primary') }}</div>
+  <div class="col-sm-6 col-xl-4">{{ comp.kpi_card('Pending Reviews', snapshot.metrics.pending_reviews, color='warning') }}</div>
+  <div class="col-sm-6 col-xl-4">{{ comp.kpi_card('Auto-Merges', snapshot.metrics.auto_merges, color='success') }}</div>
+  <div class="col-sm-6 col-xl-4">{{ comp.kpi_card('New Golden Records', snapshot.metrics.new_golden_records, color='info') }}</div>
+  <div class="col-sm-6 col-xl-4">{{ comp.kpi_card('Validation Failures', snapshot.metrics.validation_failures, color='danger') }}</div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-6">
+    <section class="surface-card h-100">
+      <div class="surface-card__body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">Decision Distribution</h2>
+          <span class="text-muted-soft small">Current run mix</span>
+        </div>
+        {% if snapshot.decision_distribution %}
+          {% set totals = namespace(count=0) %}
+          {% for item in snapshot.decision_distribution %}{% set totals.count = totals.count + item.count %}{% endfor %}
+          <div class="vstack gap-3">
+            {% for item in snapshot.decision_distribution %}
+              {% set pct = (item.count / totals.count * 100) if totals.count else 0 %}
+              <div>
+                <div class="d-flex justify-content-between mb-1"><span>{{ comp.decision_badge(item.decision) }}</span><strong>{{ item.count }}</strong></div>
+                <div class="progress"><div class="progress-bar bg-enterprise" style="width: {{ '%.1f'|format(pct) }}%"></div></div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          {{ comp.empty_state('No decision data yet.', 'Process records to populate operational decision trends.') }}
+        {% endif %}
       </div>
-    </div>
+    </section>
   </div>
-  {% endfor %}
+  <div class="col-lg-6">
+    <section class="surface-card h-100">
+      <div class="surface-card__body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">Source System Distribution</h2>
+          <span class="text-muted-soft small">Records by source</span>
+        </div>
+        {% if snapshot.source_system_distribution %}
+          <div class="vstack gap-3">
+            {% set total_sources = namespace(count=0) %}
+            {% for item in snapshot.source_system_distribution %}{% set total_sources.count = total_sources.count + item.count %}{% endfor %}
+            {% for item in snapshot.source_system_distribution %}
+              {% set pct = (item.count / total_sources.count * 100) if total_sources.count else 0 %}
+              <div>
+                <div class="d-flex justify-content-between mb-1"><span class="fw-semibold">{{ item.source_system }}</span><span>{{ item.count }}</span></div>
+                <div class="progress"><div class="progress-bar bg-enterprise" style="width: {{ '%.1f'|format(pct) }}%"></div></div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          {{ comp.empty_state('No source records yet.', 'No ingested source records are available for distribution analysis.') }}
+        {% endif %}
+      </div>
+    </section>
+  </div>
 </div>
-<div class="mb-4 d-flex gap-2 flex-wrap">
-  <a class="btn btn-primary" href="/identities/new">Submit Identity</a>
-  <a class="btn btn-outline-primary" href="/identities/batch">Upload Batch</a>
-  <a class="btn btn-outline-secondary" href="/reviews">Open Review Queue</a>
-  <a class="btn btn-outline-secondary" href="/golden-records">Browse Golden Records</a>
-</div>
+
 <div class="row g-4">
-  <div class="col-lg-6">
-    <h2 class="h4">Recent Match Decisions</h2>
-    {% if snapshot.recent_match_decisions %}
-    <table class="table table-sm table-striped">
-      <thead><tr><th>Decision</th><th>Source</th><th>Confidence</th><th>Golden</th></tr></thead>
-      <tbody>
-        {% for item in snapshot.recent_match_decisions %}
-        <tr><td>{{ item.decision }}</td><td>{{ item.source_system }} / {{ item.source_pk }}</td><td>{{ '%.2f'|format(item.confidence) }}</td><td>{{ item.golden_record_id or '—' }}</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<p class="text-muted">No match decisions yet.</p>{% endif %}
+  <div class="col-12">
+    <section class="surface-card">
+      <div class="surface-card__body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">Recent Match Decisions</h2>
+          <a href="/match-history" class="btn btn-sm btn-outline-primary">View Match History</a>
+        </div>
+        {% if snapshot.recent_match_decisions %}
+          <div class="table-shell">
+            <div class="table-responsive">
+              <table class="table">
+                <thead><tr><th>Time</th><th>Decision</th><th>Source</th><th>Confidence</th><th>Golden Record</th></tr></thead>
+                <tbody>
+                  {% for item in snapshot.recent_match_decisions %}
+                  <tr>
+                    <td>{{ item.created_at }}</td>
+                    <td>{{ comp.decision_badge(item.decision) }}</td>
+                    <td>{{ item.source_system or '—' }} / {{ item.source_pk or '—' }}</td>
+                    <td>{{ comp.confidence_bar(item.confidence) }}</td>
+                    <td>{% if item.golden_record_id %}<a href="/golden-records/{{ item.golden_record_id }}">{{ item.golden_record_id }}</a>{% else %}—{% endif %}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% else %}
+          {{ comp.empty_state('No match decisions yet.', 'Run a resolution or upload a batch to see recent decision activity.', '/identities/new', 'Submit Identity') }}
+        {% endif %}
+      </div>
+    </section>
   </div>
-  <div class="col-lg-6">
-    <h2 class="h4">Recent Merge History</h2>
-    {% if snapshot.recent_merge_history %}
-    <table class="table table-sm table-striped">
-      <thead><tr><th>Event</th><th>Winner</th><th>Reason</th></tr></thead>
-      <tbody>
-        {% for item in snapshot.recent_merge_history %}
-        <tr><td>{{ item.event_type }}</td><td>{{ item.winner_golden_record_id }}</td><td>{{ item.reason }}</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<p class="text-muted">No merge history yet.</p>{% endif %}
-  </div>
-  <div class="col-lg-6">
-    <h2 class="h4">Decision Distribution</h2>
-    {% if snapshot.decision_distribution %}
-    <ul class="list-group">
-      {% for item in snapshot.decision_distribution %}
-      <li class="list-group-item d-flex justify-content-between"><span>{{ item.decision }}</span><span>{{ item.count }}</span></li>
-      {% endfor %}
-    </ul>
-    {% else %}<p class="text-muted">No decision data yet.</p>{% endif %}
-  </div>
-  <div class="col-lg-6">
-    <h2 class="h4">Source System Distribution</h2>
-    {% if snapshot.source_system_distribution %}
-    <ul class="list-group">
-      {% for item in snapshot.source_system_distribution %}
-      <li class="list-group-item d-flex justify-content-between"><span>{{ item.source_system }}</span><span>{{ item.count }}</span></li>
-      {% endfor %}
-    </ul>
-    {% else %}<p class="text-muted">No source records yet.</p>{% endif %}
+
+  <div class="col-12">
+    <section class="surface-card">
+      <div class="surface-card__body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">Recent Merge History</h2>
+          <a href="/activity" class="btn btn-sm btn-outline-primary">Open Activity Log</a>
+        </div>
+        {% if snapshot.recent_merge_history %}
+          <div class="table-shell">
+            <div class="table-responsive">
+              <table class="table">
+                <thead><tr><th>Time</th><th>Event</th><th>Winner</th><th>Loser</th><th>Reason</th></tr></thead>
+                <tbody>
+                  {% for item in snapshot.recent_merge_history %}
+                  <tr>
+                    <td>{{ item.created_at }}</td>
+                    <td>{{ comp.status_badge(item.event_type) }}</td>
+                    <td><a href="/golden-records/{{ item.winner_golden_record_id }}">{{ item.winner_golden_record_id }}</a></td>
+                    <td>{{ item.loser_golden_record_id }}</td>
+                    <td>{{ item.reason }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% else %}
+          {{ comp.empty_state('No merge history yet.', 'Merge activity will appear here after auto-merge or manual review approval events.') }}
+        {% endif %}
+      </div>
+    </section>
   </div>
 </div>
 {% endblock %}

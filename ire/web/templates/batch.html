@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% import "macros/components.html" as comp %}
+{% block title %}Batch Processing · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Identity Resolution', 'url': None}, {'label': 'Batch Processing', 'url': None}]) }}{% endblock %}
+{% block page_header %}{{ comp.page_header('Batch Processing', 'Upload CSV, JSON, or JSONL records for bulk identity resolution using the existing Phase 1 batch service.') }}{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-xl-5">
+    <section class="surface-card js-submit-lock">
+      <form method="post" enctype="multipart/form-data">
+        <div class="surface-card__body">
+          <h2 class="h5 mb-3">Upload File</h2>
+          <div class="mb-3">
+            <label class="form-label" for="file">Batch Input File <span class="required-label">Required</span></label>
+            <input class="form-control" type="file" id="file" name="file" required>
+            <div class="helper-text mt-1">Accepted formats depend on the existing upload parser. CSV is recommended for browser use.</div>
+          </div>
+          <div class="callout mb-3">
+            <strong>Sample format</strong>
+            <p class="helper-text mb-0 mt-2">Include source_system, source_pk, and any supported identity fields such as emplid, first_name, last_name, email, phone, and date_of_birth.</p>
+          </div>
+          <div class="helper-text">Configured source systems: {{ source_systems|map(attribute='code')|join(', ') }}</div>
+        </div>
+        <div class="surface-card__footer">
+          <button class="btn btn-primary" type="submit" data-loading-text="Processing Batch...">Upload Batch</button>
+        </div>
+      </form>
+    </section>
+  </div>
+  <div class="col-xl-7">
+    {% if batch_result %}
+      <section class="surface-card mb-4">
+        <div class="surface-card__body">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="h5 mb-0">Batch Summary</h2>
+            <span class="text-muted-soft">{{ batch_result.filename or 'Upload' }} · {{ batch_result.total_records }} record(s)</span>
+          </div>
+          <div class="row g-3">
+            <div class="col-sm-6 col-lg-3">{{ comp.kpi_card('Total', batch_result.total_records, color='primary') }}</div>
+            <div class="col-sm-6 col-lg-3">{{ comp.kpi_card('Auto-Merge', batch_result.auto_merge_count, color='success') }}</div>
+            <div class="col-sm-6 col-lg-3">{{ comp.kpi_card('Manual Review', batch_result.manual_review_count, color='warning') }}</div>
+            <div class="col-sm-6 col-lg-3">{{ comp.kpi_card('Create New', batch_result.create_new_count, color='info') }}</div>
+            <div class="col-sm-6 col-lg-3">{{ comp.kpi_card('Validation Failures', batch_result.validation_failure_count, color='danger') }}</div>
+          </div>
+        </div>
+      </section>
+      <section class="surface-card">
+        <div class="surface-card__body">
+          <h2 class="h5 mb-3">Row Results</h2>
+          <div class="table-shell">
+            <div class="table-responsive">
+              <table class="table">
+                <thead><tr><th>Decision</th><th>Source Record</th><th>Golden Record</th><th>Confidence</th><th>Reason</th><th>Validation Details</th></tr></thead>
+                <tbody>
+                  {% for item in batch_result.results %}
+                  <tr>
+                    <td>{{ comp.decision_badge(item.outcome) }}</td>
+                    <td>{{ item.source_record_id or '—' }}</td>
+                    <td>{% if item.golden_record_id %}<a href="/golden-records/{{ item.golden_record_id }}">{{ item.golden_record_id }}</a>{% else %}—{% endif %}</td>
+                    <td>{{ comp.confidence_bar(item.confidence) }}</td>
+                    <td>{{ item.reason or '—' }}</td>
+                    <td>
+                      {% if item.validation_issues %}
+                        {{ item.validation_issues|length }} issue(s)
+                      {% else %}
+                        None
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    {% else %}
+      {{ comp.empty_state('No batch processed yet.', 'Upload a file to generate a Batch Summary and detailed row outcomes.') }}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.querySelectorAll('.js-submit-lock form').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      const submitter = event.submitter;
+      if (!submitter) return;
+      submitter.disabled = true;
+      submitter.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>' + (submitter.dataset.loadingText || 'Working...');
+    });
+  });
+</script>
+{% endblock %}
