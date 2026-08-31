@@ -404,7 +404,7 @@ def merge_golden_records(
         links_before=links_before,
     )
     merge_history = MergeHistoryEvent(
-        merge_event_id=new_merge_event_id(),
+        merge_event_id=merge_event.merge_id,
         event_type=MergeEventType.MANUAL,
         winner_golden_record_id=survivor_id,
         loser_golden_record_id=loser_id,
@@ -517,7 +517,7 @@ def rollback_merge(merge_id: str, actor: str, reason: str, repo: IRERepository) 
         timestamp=now,
     )
     merge_history = MergeHistoryEvent(
-        merge_event_id=new_merge_event_id(),
+        merge_event_id=merge_id,
         event_type=MergeEventType.UNMERGE,
         winner_golden_record_id=event.survivor_id,
         loser_golden_record_id=event.loser_id,
