@@ -11,11 +11,16 @@
     <p class="page-header__description">Golden ID {{ golden.golden_record_id }} · {{ comp.status_badge(golden.status) }} · Version {{ golden.version }} · Updated {{ golden.updated_at }}</p>
   </div>
   <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary" href="/golden-records/compare?left={{ golden.golden_record_id }}">Compare</a>
+    <a class="btn btn-outline-secondary" href="/golden-records/merge/preview?survivor={{ golden.golden_record_id }}">Merge</a>
     <a class="btn btn-primary" href="/identities/new">Resolve Another Record</a>
   </div>
 </div>
 {% endblock %}
 {% block content %}
+{% if message %}
+  <div class="notice-banner notice-banner--success mb-4">{{ message }}</div>
+{% endif %}
 {% if golden.is_superseded %}
   <div class="notice-banner notice-banner--warning mb-4"><strong>Superseded record.</strong> This profile has been superseded{% if golden.superseded_by %} by <a href="/golden-records/{{ golden.superseded_by }}">{{ golden.superseded_by }}</a>{% endif %}.</div>
 {% endif %}
@@ -75,7 +80,7 @@
           <div class="table-shell mb-4">
             <div class="table-responsive">
               <table class="table">
-                <thead><tr><th colspan="7">{{ field_name }}</th></tr><tr><th>Value</th><th>Source System</th><th>Trust Score</th><th>Verified</th><th>Primary</th><th>Manual Lock</th><th>Observed At</th></tr></thead>
+                <thead><tr><th colspan="8">{{ field_name }}</th></tr><tr><th>Value</th><th>Source System</th><th>Trust Score</th><th>Verified</th><th>Primary</th><th>Manual Lock</th><th>Observed At</th><th>Action</th></tr></thead>
                 <tbody>
                   {% for value in values %}
                     <tr>
@@ -86,6 +91,16 @@
                       <td>{{ 'Yes' if value.is_primary else 'No' }}</td>
                       <td>{{ 'Yes' if value.manual_lock else 'No' }}</td>
                       <td>{{ value.observed_at }}</td>
+                      <td>
+                        {% if not golden.is_superseded and value.is_active and not value.is_primary %}
+                        <form method="post" action="/golden-records/{{ golden.golden_record_id }}/override-primary/{{ field_name }}" class="d-flex gap-1 align-items-center">
+                          <input type="hidden" name="value_id" value="{{ value.value_id }}">
+                          <input class="form-control form-control-sm" name="actor" placeholder="actor" style="width:6rem" required>
+                          <input class="form-control form-control-sm" name="reason" placeholder="reason" style="width:8rem" required>
+                          <button class="btn btn-sm btn-outline-primary" type="submit">Set Primary</button>
+                        </form>
+                        {% elif value.is_primary %}<span class="status-badge status-info">current</span>{% endif %}
+                      </td>
                     </tr>
                   {% endfor %}
                 </tbody>
@@ -122,11 +137,30 @@
       </div>
 
       <div class="tab-pane fade" id="golden-history" role="tabpanel">
-        <div class="callout">
-          <strong>History events from JSONL available via Activity Log</strong>
-          <p class="helper-text mb-0 mt-2">Operational event history is exposed in the Activity Log workspace for this prototype.</p>
+        <h2 class="h5">Timeline</h2>
+        {% if timeline %}
+          <div class="table-shell">
+            <div class="table-responsive">
+              <table class="table">
+                <thead><tr><th>Timestamp</th><th>Category</th><th>Event</th><th>Summary</th><th>Actor</th></tr></thead>
+                <tbody>
+                  {% for entry in timeline %}
+                    <tr>
+                      <td>{{ entry.timestamp }}</td>
+                      <td>{{ comp.status_badge(entry.category) }}</td>
+                      <td>{{ entry.event_type }}</td>
+                      <td>{{ entry.summary }}</td>
+                      <td>{{ entry.actor or '—' }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
           <a class="btn btn-outline-primary mt-3" href="/activity">Open Activity Log</a>
-        </div>
+        {% else %}
+          {{ comp.empty_state('No timeline events yet.', 'Lifecycle, link, merge, override, and rollback events will appear here as they occur.') }}
+        {% endif %}
       </div>
     </div>
   </div>

@@ -9,7 +9,15 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from ire import __version__
-from ire.exceptions import ConfigurationError, InvalidReviewDecisionError, RepositoryError, ValidationError
+from ire.exceptions import (
+    ConfigurationError,
+    InvalidReviewDecisionError,
+    MergeBlockedError,
+    NotFoundError,
+    RepositoryError,
+    StaleVersionError,
+    ValidationError,
+)
 from ire.web.dependencies import STATIC_DIR, TEMPLATES_DIR, WebRuntime, create_runtime
 from ire.web.routers import api, configuration, dashboard, golden, history, records, reviews
 
@@ -41,6 +49,18 @@ def create_app(
     @app.exception_handler(InvalidReviewDecisionError)
     async def review_conflict_handler(request: Request, exc: InvalidReviewDecisionError):
         return _error_response(request, 409, "REVIEW_CONFLICT", "This review task is already completed or the requested decision is invalid.")
+
+    @app.exception_handler(StaleVersionError)
+    async def stale_version_handler(request: Request, exc: StaleVersionError):
+        return _error_response(request, 409, "STALE_VERSION", str(exc))
+
+    @app.exception_handler(MergeBlockedError)
+    async def merge_blocked_handler(request: Request, exc: MergeBlockedError):
+        return _error_response(request, 409, "MERGE_BLOCKED", str(exc))
+
+    @app.exception_handler(NotFoundError)
+    async def not_found_handler(request: Request, exc: NotFoundError):
+        return _error_response(request, 404, "NOT_FOUND", str(exc))
 
     @app.exception_handler(ConfigurationError)
     async def configuration_handler(request: Request, exc: ConfigurationError):

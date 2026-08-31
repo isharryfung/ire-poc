@@ -1,8 +1,20 @@
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from typing import Protocol
 
-from .models import AuditEvent, GoldenRecord, ManualReviewTask, MatchRun, MergeHistoryEvent, RecordLink, SourceRecord
+from .models import (
+    AuditEvent,
+    GoldenRecord,
+    ManualReviewTask,
+    MatchRun,
+    MergeEvent,
+    MergeHistoryEvent,
+    PrimaryOverrideEvent,
+    RecordLink,
+    RollbackEvent,
+    SourceRecord,
+)
 
 
 class IRERepository(Protocol):
@@ -49,3 +61,25 @@ class IRERepository(Protocol):
     def append_merge_history_event(self, event: MergeHistoryEvent) -> None: ...
 
     def append_audit_event(self, event: AuditEvent) -> None: ...
+
+    def save_golden_record(self, record: GoldenRecord) -> None: ...
+
+    def save_record_link(self, link: RecordLink) -> None: ...
+
+    def save_merge_event(self, event: MergeEvent) -> None: ...
+
+    def load_merge_events(self) -> list[MergeEvent]: ...
+
+    def load_merge_event(self, merge_id: str) -> MergeEvent | None: ...
+
+    def save_primary_override_event(self, event: PrimaryOverrideEvent) -> None: ...
+
+    def load_primary_override_events(self) -> list[PrimaryOverrideEvent]: ...
+
+    def save_rollback_event(self, event: RollbackEvent) -> None: ...
+
+    def load_rollback_events(self) -> list[RollbackEvent]: ...
+
+    def find_rollback_for_merge(self, merge_id: str) -> RollbackEvent | None: ...
+
+    def atomic_update(self) -> AbstractContextManager["IRERepository"]: ...

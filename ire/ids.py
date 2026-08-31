@@ -46,3 +46,15 @@ def new_merge_event_id() -> str:
 
 def new_audit_event_id() -> str:
     return new_id("AUD-")
+
+
+def new_field_value_id() -> str:
+    return new_id("GFV-")
+
+
+def new_primary_override_id() -> str:
+    return new_id("POV-")
+
+
+def new_rollback_id() -> str:
+    return new_id("RBK-")

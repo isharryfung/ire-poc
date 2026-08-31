@@ -7,6 +7,7 @@ from ire.enums import GoldenRecordStatus, LinkStatus, ReviewStatus
 from ire.models import GoldenFieldValue, GoldenRecord, MatchRun, MergeHistoryEvent, RecordLink, SourceRecord
 from ire.repository import IRERepository
 from ire.review import ReviewDetail
+from ire.safety import mask_email, mask_hkid, mask_phone, mask_value
 from ire.service import ProcessResult
 
 
@@ -19,47 +20,12 @@ OUTCOME_STYLES = {
 }
 
 
-def mask_hkid(value: str | None) -> str | None:
-    if not value:
-        return value
-    cleaned = str(value)
-    if len(cleaned) <= 2:
-        return cleaned
-    return f"{cleaned[0]}{'*' * max(1, len(cleaned) - 2)}{cleaned[-1]}"
-
-
-def mask_phone(value: str | None) -> str | None:
-    if not value:
-        return value
-    digits = "".join(ch for ch in str(value) if ch.isdigit())
-    if len(digits) <= 4:
-        return digits
-    return f"****{digits[-4:]}"
-
-
-def mask_email(value: str | None) -> str | None:
-    if not value or "@" not in str(value):
-        return value
-    local, domain = str(value).split("@", 1)
-    if len(local) <= 2:
-        masked_local = f"{local[:1]}*"
-    else:
-        masked_local = f"{local[:1]}{'*' * max(1, len(local) - 2)}{local[-1]}"
-    return f"{masked_local}@{domain}"
-
-
-def mask_value(field_name: str, value: Any) -> Any:
-    if value is None:
-        return None
-    if isinstance(value, list):
-        return [mask_value(field_name, item) for item in value]
-    if field_name == "hkid":
-        return mask_hkid(str(value))
-    if field_name == "phone":
-        return mask_phone(str(value))
-    if field_name == "email":
-        return mask_email(str(value))
-    return value
+__all__ = [
+    "mask_email",
+    "mask_hkid",
+    "mask_phone",
+    "mask_value",
+]
 
 
 def _primary_field_value(values: list[GoldenFieldValue]) -> GoldenFieldValue | None:
@@ -71,6 +37,7 @@ def _primary_field_value(values: list[GoldenFieldValue]) -> GoldenFieldValue | N
 
 def _present_golden_value(field_name: str, value: GoldenFieldValue) -> dict[str, Any]:
     return {
+        "value_id": value.value_id,
         "raw_value": mask_value(field_name, value.raw_value),
         "normalized_value": mask_value(field_name, value.normalized_value),
         "source_record_id": value.source_record_id,
@@ -174,6 +141,7 @@ def present_golden_record(golden: GoldenRecord, links: list[RecordLink]) -> dict
         "created_at": golden.created_at,
         "updated_at": golden.updated_at,
         "superseded_by": golden.superseded_by,
+        "merged_from": list(golden.merged_from),
         "is_superseded": golden.status == GoldenRecordStatus.SUPERSEDED or golden.superseded_by is not None,
         "primary_values": primary_values,
         "all_known_values": all_known_values,
@@ -330,3 +298,121 @@ def dashboard_snapshot(repo: IRERepository) -> dict[str, Any]:
         "decision_distribution": [{"decision": key, "count": value} for key, value in sorted(decision_distribution.items())],
         "source_system_distribution": [{"source_system": key, "count": value} for key, value in sorted(source_distribution.items())],
     }
+
+
+# --------------------------------------------------------------------------- #
+# Phase 1.2 presenters (masked, side-effect free)
+# --------------------------------------------------------------------------- #
+def _present_field_value_summary(field_name: str, value: GoldenFieldValue) -> dict[str, Any]:
+    return {
+        "value_id": value.value_id,
+        "value": mask_value(field_name, value.normalized_value or value.raw_value),
+        "source_system": value.source_system,
+        "source_record_id": value.source_record_id,
+        "trust_score": value.trust_score,
+        "is_primary": value.is_primary,
+        "manual_lock": value.manual_lock,
+        "is_active": value.is_active,
+    }
+
+
+def present_compare_result(result: "GoldenCompareResult") -> dict[str, Any]:
+    return {
+        "left_id": result.left_id,
+        "right_id": result.right_id,
+        "can_merge": result.can_merge,
+        "block_reasons": list(result.block_reasons),
+        "strong_identifier_conflicts": list(result.strong_identifier_conflicts),
+        "dob_conflict": result.dob_conflict,
+        "fields": [
+            {
+                "field_name": comparison.field_name,
+                "left_value": mask_value(comparison.field_name, comparison.left_value),
+                "right_value": mask_value(comparison.field_name, comparison.right_value),
+                "status": comparison.status,
+                "is_strong_identifier": comparison.is_strong_identifier,
+                "is_dob": comparison.is_dob,
+            }
+            for comparison in result.fields
+        ],
+    }
+
+
+def present_merge_preview(result: "MergePreviewResult") -> dict[str, Any]:
+    merged_fields = {
+        field_name: [_present_field_value_summary(field_name, value) for value in values]
+        for field_name, values in result.merged_fields.items()
+    }
+    resulting_primary = {
+        field_name: _present_field_value_summary(field_name, value)
+        for field_name, value in result.resulting_primary_values.items()
+    }
+    return {
+        "survivor_id": result.survivor_id,
+        "loser_id": result.loser_id,
+        "can_merge": result.can_merge,
+        "block_reasons": list(result.block_reasons),
+        "merged_fields": merged_fields,
+        "resulting_primary_values": resulting_primary,
+        "moved_link_ids": list(result.moved_link_ids),
+    }
+
+
+def present_merge_result(result: "MergeResult", repo: IRERepository) -> dict[str, Any]:
+    links = repo.load_record_links()
+    return {
+        "merge_id": result.merge_event.merge_id,
+        "survivor": present_golden_record(result.survivor, links),
+        "loser": present_golden_record(result.loser, links),
+        "moved_link_ids": list(result.moved_link_ids),
+    }
+
+
+def present_rollback_preview(result: "RollbackPreviewResult", repo: IRERepository) -> dict[str, Any]:
+    links = repo.load_record_links()
+    return {
+        "merge_id": result.merge_id,
+        "survivor_id": result.survivor_id,
+        "loser_id": result.loser_id,
+        "can_rollback": result.can_rollback,
+        "block_reasons": list(result.block_reasons),
+        "restored_survivor": present_golden_record(result.restored_survivor, links),
+        "restored_loser": present_golden_record(result.restored_loser, links),
+        "restored_link_ids": list(result.restored_link_ids),
+    }
+
+
+def present_rollback_result(result: "RollbackResult", repo: IRERepository) -> dict[str, Any]:
+    links = repo.load_record_links()
+    return {
+        "rollback_id": result.rollback_event.rollback_id,
+        "merge_id": result.rollback_event.merge_id,
+        "survivor": present_golden_record(result.survivor, links),
+        "loser": present_golden_record(result.loser, links),
+        "restored_link_ids": list(result.restored_link_ids),
+    }
+
+
+def present_override_result(result: "PrimaryOverrideResult", repo: IRERepository) -> dict[str, Any]:
+    links = repo.load_record_links()
+    return {
+        "field_name": result.field_name,
+        "previous_primary_value_id": result.previous_primary_value_id,
+        "new_primary_value_id": result.new_primary_value_id,
+        "override_id": result.override_event.override_id,
+        "golden_record": present_golden_record(result.golden_record, links),
+    }
+
+
+def present_timeline(entries: list["TimelineEntry"]) -> list[dict[str, Any]]:
+    return [
+        {
+            "timestamp": entry.timestamp,
+            "category": entry.category,
+            "event_type": entry.event_type,
+            "summary": entry.summary,
+            "actor": entry.actor,
+            "details": dict(entry.details),
+        }
+        for entry in entries
+    ]

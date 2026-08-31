@@ -21,3 +21,30 @@ class RejectReviewRequest(BaseModel):
     reviewer: str = Field(..., min_length=1)
     action: Literal["create-new", "invalid"]
     notes: str | None = None
+
+
+class PrimaryOverrideRequest(BaseModel):
+    value_id: str = Field(..., min_length=1)
+    actor: str = Field(..., min_length=1)
+    reason: str = Field(..., min_length=1)
+
+
+class MergePreviewRequest(BaseModel):
+    survivor_id: str = Field(..., min_length=1)
+    loser_id: str = Field(..., min_length=1)
+    proposed_selections: dict[str, str] | None = None
+
+
+class MergeRequest(BaseModel):
+    survivor_id: str = Field(..., min_length=1)
+    loser_id: str = Field(..., min_length=1)
+    actor: str = Field(..., min_length=1)
+    reason: str = Field(..., min_length=1)
+    expected_survivor_version: int | None = None
+    expected_loser_version: int | None = None
+    proposed_selections: dict[str, str] | None = None
+
+
+class RollbackRequest(BaseModel):
+    actor: str = Field(..., min_length=1)
+    reason: str = Field(..., min_length=1)

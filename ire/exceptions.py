@@ -28,3 +28,11 @@ class InvalidReviewDecisionError(ValidationError):
 
 class GoldenRecordConflictError(ValidationError):
     """Raised when a Golden Record update has a conflict."""
+
+
+class StaleVersionError(ValidationError):
+    """Raised when optimistic concurrency detects a stale entity version."""
+
+
+class MergeBlockedError(ValidationError):
+    """Raised when a Golden-to-Golden merge is blocked by a safety rule."""

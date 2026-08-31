@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% import "macros/components.html" as comp %}
+{% block title %}Merge Preview · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Identity Management', 'url': None}, {'label': 'Golden Records', 'url': '/golden-records'}, {'label': 'Merge Preview', 'url': None}]) }}{% endblock %}
+{% block page_header %}
+{{ comp.page_header('Golden Record Merge Preview', 'Preview the survivorship outcome of consolidating two golden records. This preview is side-effect free.') }}
+{% endblock %}
+{% block content %}
+<section class="surface-card mb-4">
+  <div class="surface-card__body">
+    <form method="get" action="/golden-records/merge/preview" class="row g-3 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label">Survivor Golden Record</label>
+        <select class="form-select" name="survivor">
+          <option value="">Select…</option>
+          {% for g in goldens %}<option value="{{ g.golden_record_id }}" {% if filters.survivor == g.golden_record_id %}selected{% endif %}>{{ g.golden_record_id }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Loser Golden Record</label>
+        <select class="form-select" name="loser">
+          <option value="">Select…</option>
+          {% for g in goldens %}<option value="{{ g.golden_record_id }}" {% if filters.loser == g.golden_record_id %}selected{% endif %}>{{ g.golden_record_id }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100" type="submit">Preview</button>
+      </div>
+    </form>
+  </div>
+</section>
+
+{% if preview %}
+  {% if preview.can_merge %}
+    <div class="notice-banner notice-banner--success mb-4"><strong>Merge allowed.</strong> {{ preview.moved_link_ids|length }} link(s) will move from {{ preview.loser_id }} to {{ preview.survivor_id }}.</div>
+  {% else %}
+    <div class="notice-banner notice-banner--warning mb-4"><strong>Merge blocked.</strong> Reasons: {{ preview.block_reasons|join(', ') }}</div>
+  {% endif %}
+
+  <section class="surface-card mb-4">
+    <div class="surface-card__body">
+      <h2 class="h5">Resulting Primary Values</h2>
+      <div class="table-shell">
+        <div class="table-responsive">
+          <table class="table">
+            <thead><tr><th>Field</th><th>Value</th><th>Source System</th><th>Manual Lock</th></tr></thead>
+            <tbody>
+              {% for field_name, value in preview.resulting_primary_values.items() %}
+                <tr>
+                  <td>{{ field_name }}</td>
+                  <td>{{ value.value }}</td>
+                  <td>{{ value.source_system }}</td>
+                  <td>{{ 'Yes' if value.manual_lock else 'No' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {% if preview.can_merge %}
+  <section class="surface-card">
+    <div class="surface-card__body">
+      <h2 class="h5">Execute Merge</h2>
+      <form method="post" action="/golden-records/merge" class="js-confirm-submit row g-3 align-items-end" data-confirm="Merge {{ preview.loser_id }} into {{ preview.survivor_id }}? This can be rolled back.">
+        <input type="hidden" name="survivor_id" value="{{ preview.survivor_id }}">
+        <input type="hidden" name="loser_id" value="{{ preview.loser_id }}">
+        <div class="col-md-4"><label class="form-label">Actor</label><input class="form-control" name="actor" required></div>
+        <div class="col-md-6"><label class="form-label">Reason</label><input class="form-control" name="reason" required></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100" type="submit" data-loading-text="Merging...">Merge</button></div>
+      </form>
+    </div>
+  </section>
+  {% endif %}
+{% else %}
+  {{ comp.empty_state('Select survivor and loser', 'Choose a survivor and loser golden record above to preview the merge outcome.') }}
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  document.querySelectorAll('.js-confirm-submit').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      if (!window.confirm(form.dataset.confirm || 'Continue?')) { event.preventDefault(); }
+    });
+  });
+</script>
+{% endblock %}
