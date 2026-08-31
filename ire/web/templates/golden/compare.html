@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% import "macros/components.html" as comp %}
+{% block title %}Compare Golden Records · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Identity Management', 'url': None}, {'label': 'Golden Records', 'url': '/golden-records'}, {'label': 'Compare', 'url': None}]) }}{% endblock %}
+{% block page_header %}
+{{ comp.page_header('Compare Golden Records', 'Review field-by-field agreement and conflicts before consolidating two golden records.') }}
+{% endblock %}
+{% block content %}
+<section class="surface-card mb-4">
+  <div class="surface-card__body">
+    <form method="get" action="/golden-records/compare" class="row g-3 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label">Left Golden Record</label>
+        <select class="form-select" name="left">
+          <option value="">Select…</option>
+          {% for g in goldens %}<option value="{{ g.golden_record_id }}" {% if filters.left == g.golden_record_id %}selected{% endif %}>{{ g.golden_record_id }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Right Golden Record</label>
+        <select class="form-select" name="right">
+          <option value="">Select…</option>
+          {% for g in goldens %}<option value="{{ g.golden_record_id }}" {% if filters.right == g.golden_record_id %}selected{% endif %}>{{ g.golden_record_id }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100" type="submit">Compare</button>
+      </div>
+    </form>
+  </div>
+</section>
+
+{% if comparison %}
+  {% if comparison.can_merge %}
+    <div class="notice-banner notice-banner--success mb-4"><strong>No blocking conflicts.</strong> These records can be merged.
+      <a class="btn btn-sm btn-outline-primary ms-2" href="/golden-records/merge/preview?survivor={{ comparison.left_id }}&loser={{ comparison.right_id }}">Preview Merge</a>
+    </div>
+  {% else %}
+    <div class="notice-banner notice-banner--warning mb-4"><strong>Merge blocked.</strong> Reasons: {{ comparison.block_reasons|join(', ') }}</div>
+  {% endif %}
+  <section class="surface-card">
+    <div class="surface-card__body">
+      <h2 class="h5">Field Comparison</h2>
+      <div class="table-shell">
+        <div class="table-responsive">
+          <table class="table">
+            <thead><tr><th>Field</th><th>{{ comparison.left_id }}</th><th>{{ comparison.right_id }}</th><th>Status</th></tr></thead>
+            <tbody>
+              {% for field in comparison.fields %}
+                <tr>
+                  <td>{{ field.field_name }}{% if field.is_strong_identifier %} <span class="status-badge status-info">strong id</span>{% endif %}{% if field.is_dob %} <span class="status-badge status-info">dob</span>{% endif %}</td>
+                  <td>{{ field.left_value if field.left_value is not none else '—' }}</td>
+                  <td>{{ field.right_value if field.right_value is not none else '—' }}</td>
+                  <td>{{ comp.status_badge(field.status) }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+{% else %}
+  {{ comp.empty_state('Select two golden records', 'Choose a left and right golden record above to see a field-by-field comparison.') }}
+{% endif %}
+{% endblock %}

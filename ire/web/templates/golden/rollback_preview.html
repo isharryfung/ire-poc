@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% import "macros/components.html" as comp %}
+{% block title %}Rollback Preview · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Identity Management', 'url': None}, {'label': 'Golden Records', 'url': '/golden-records'}, {'label': 'Rollback Preview', 'url': None}]) }}{% endblock %}
+{% block page_header %}
+{{ comp.page_header('Merge Rollback Preview', 'Preview restoring both golden records to their pre-merge state. This preview is side-effect free.') }}
+{% endblock %}
+{% block content %}
+{% if preview.can_rollback %}
+  <div class="notice-banner notice-banner--success mb-4"><strong>Rollback available.</strong> Merge {{ preview.merge_id }} can be reverted, restoring {{ preview.restored_link_ids|length }} link(s).</div>
+{% else %}
+  <div class="notice-banner notice-banner--warning mb-4"><strong>Rollback blocked.</strong> Reasons: {{ preview.block_reasons|join(', ') }}</div>
+{% endif %}
+
+<section class="surface-card mb-4">
+  <div class="surface-card__body">
+    <h2 class="h5">Restored Records</h2>
+    <dl class="definition-list mb-0">
+      <div class="definition-list__item"><dt>Survivor</dt><dd><a href="/golden-records/{{ preview.survivor_id }}">{{ preview.survivor_id }}</a> · {{ comp.status_badge(preview.restored_survivor.status) }}</dd></div>
+      <div class="definition-list__item"><dt>Loser</dt><dd><a href="/golden-records/{{ preview.loser_id }}">{{ preview.loser_id }}</a> · {{ comp.status_badge(preview.restored_loser.status) }}</dd></div>
+      <div class="definition-list__item"><dt>Links Restored</dt><dd>{{ preview.restored_link_ids|join(', ') or '—' }}</dd></div>
+    </dl>
+  </div>
+</section>
+
+{% if preview.can_rollback %}
+<section class="surface-card">
+  <div class="surface-card__body">
+    <h2 class="h5">Execute Rollback</h2>
+    <form method="post" action="/golden-records/merge/{{ preview.merge_id }}/rollback" class="js-confirm-submit row g-3 align-items-end" data-confirm="Roll back merge {{ preview.merge_id }}?">
+      <div class="col-md-4"><label class="form-label">Actor</label><input class="form-control" name="actor" required></div>
+      <div class="col-md-6"><label class="form-label">Reason</label><input class="form-control" name="reason" required></div>
+      <div class="col-md-2"><button class="btn btn-danger w-100" type="submit" data-loading-text="Rolling back...">Rollback</button></div>
+    </form>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  document.querySelectorAll('.js-confirm-submit').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      if (!window.confirm(form.dataset.confirm || 'Continue?')) { event.preventDefault(); }
+    });
+  });
+</script>
+{% endblock %}

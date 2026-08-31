@@ -1,10 +1,18 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from ire.web.dependencies import WebRuntime, get_runtime
-from ire.web.presenters import list_golden_records, present_golden_record
+from ire.web.presenters import (
+    list_golden_records,
+    present_compare_result,
+    present_golden_record,
+    present_merge_preview,
+    present_rollback_preview,
+    present_timeline,
+)
 
 router = APIRouter(tags=["golden"])
 
@@ -41,15 +49,127 @@ def golden_list(
     )
 
 
+@router.get("/golden-records/compare")
+def golden_compare(
+    request: Request,
+    left: str | None = Query(default=None),
+    right: str | None = Query(default=None),
+    runtime: WebRuntime = Depends(get_runtime),
+):
+    comparison = None
+    if left and right:
+        comparison = present_compare_result(runtime.compare_golden_fn(left, right, runtime.repo))
+    goldens = list_golden_records(runtime.repo)
+    return _templates(request).TemplateResponse(
+        request,
+        "golden/compare.html",
+        {
+            "comparison": comparison,
+            "goldens": goldens,
+            "filters": {"left": left or "", "right": right or ""},
+            "current_path": request.url.path,
+        },
+    )
+
+
+@router.post("/golden-records/{golden_id}/override-primary/{field_name}")
+def golden_override_primary(
+    golden_id: str,
+    field_name: str,
+    request: Request,
+    value_id: str = Form(...),
+    actor: str = Form(...),
+    reason: str = Form(...),
+    runtime: WebRuntime = Depends(get_runtime),
+):
+    runtime.override_primary_fn(golden_id, field_name, value_id, actor, reason, runtime.repo)
+    return RedirectResponse(url=f"/golden-records/{golden_id}?message=Primary+value+updated", status_code=303)
+
+
+@router.get("/golden-records/merge/preview")
+def golden_merge_preview(
+    request: Request,
+    survivor: str | None = Query(default=None),
+    loser: str | None = Query(default=None),
+    runtime: WebRuntime = Depends(get_runtime),
+):
+    preview = None
+    if survivor and loser:
+        preview = present_merge_preview(runtime.preview_merge_fn(survivor, loser, runtime.repo, None))
+    goldens = list_golden_records(runtime.repo)
+    return _templates(request).TemplateResponse(
+        request,
+        "golden/merge_preview.html",
+        {
+            "preview": preview,
+            "goldens": goldens,
+            "filters": {"survivor": survivor or "", "loser": loser or ""},
+            "current_path": request.url.path,
+        },
+    )
+
+
+@router.post("/golden-records/merge")
+def golden_merge(
+    request: Request,
+    survivor_id: str = Form(...),
+    loser_id: str = Form(...),
+    actor: str = Form(...),
+    reason: str = Form(...),
+    runtime: WebRuntime = Depends(get_runtime),
+):
+    result = runtime.merge_golden_fn(survivor_id, loser_id, actor, reason, runtime.repo, None, None, None)
+    return RedirectResponse(
+        url=f"/golden-records/{result.survivor.golden_record_id}?message=Merge+completed+({result.merge_event.merge_id})",
+        status_code=303,
+    )
+
+
+@router.get("/golden-records/merge/{merge_id}/rollback-preview")
+def golden_rollback_preview(merge_id: str, request: Request, runtime: WebRuntime = Depends(get_runtime)):
+    preview = present_rollback_preview(runtime.rollback_preview_fn(merge_id, runtime.repo), runtime.repo)
+    return _templates(request).TemplateResponse(
+        request,
+        "golden/rollback_preview.html",
+        {"preview": preview, "current_path": request.url.path},
+    )
+
+
+@router.post("/golden-records/merge/{merge_id}/rollback")
+def golden_rollback(
+    merge_id: str,
+    request: Request,
+    actor: str = Form(...),
+    reason: str = Form(...),
+    runtime: WebRuntime = Depends(get_runtime),
+):
+    result = runtime.rollback_merge_fn(merge_id, actor, reason, runtime.repo)
+    return RedirectResponse(
+        url=f"/golden-records/{result.survivor.golden_record_id}?message=Merge+rolled+back",
+        status_code=303,
+    )
+
+
 @router.get("/golden-records/{golden_id}")
-def golden_detail(golden_id: str, request: Request, runtime: WebRuntime = Depends(get_runtime)):
+def golden_detail(
+    golden_id: str,
+    request: Request,
+    message: str | None = Query(default=None),
+    runtime: WebRuntime = Depends(get_runtime),
+):
     golden = runtime.repo.find_golden_record(golden_id)
     if golden is None:
         raise HTTPException(status_code=404, detail="Golden record not found")
+    timeline = present_timeline(runtime.timeline_fn(golden_id, runtime.repo, None))
     return _templates(request).TemplateResponse(
         request,
         "golden/detail.html",
-        {"golden": present_golden_record(golden, runtime.repo.load_record_links()), "current_path": request.url.path},
+        {
+            "golden": present_golden_record(golden, runtime.repo.load_record_links()),
+            "timeline": timeline,
+            "message": message,
+            "current_path": request.url.path,
+        },
     )
 
 
