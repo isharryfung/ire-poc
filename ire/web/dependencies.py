@@ -7,10 +7,19 @@ from typing import Callable
 from fastapi import Request
 
 from ire.config import IREConfig, load_config
+from ire.golden_merge import (
+    compare_golden_records,
+    merge_golden_records,
+    preview_golden_merge,
+    rollback_merge,
+    rollback_merge_preview,
+)
 from ire.json_repository import JsonFileRepository
+from ire.primary_override import override_primary_value
 from ire.repository import IRERepository
 from ire.review import approve_review, reject_review, show_review_task
 from ire.service import ProcessResult, preview_record, process_batch, process_record
+from ire.timeline import get_golden_timeline
 
 WEB_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = WEB_DIR / "templates"
@@ -29,6 +38,13 @@ class WebRuntime:
     show_review_task_fn: Callable[[str, IRERepository], object] = show_review_task
     approve_review_fn: Callable[[str, str, str, str | None, IRERepository, IREConfig], object] = approve_review
     reject_review_fn: Callable[[str, str, str, str | None, IRERepository, IREConfig], dict] = reject_review
+    compare_golden_fn: Callable[..., object] = compare_golden_records
+    preview_merge_fn: Callable[..., object] = preview_golden_merge
+    merge_golden_fn: Callable[..., object] = merge_golden_records
+    rollback_preview_fn: Callable[..., object] = rollback_merge_preview
+    rollback_merge_fn: Callable[..., object] = rollback_merge
+    override_primary_fn: Callable[..., object] = override_primary_value
+    timeline_fn: Callable[..., object] = get_golden_timeline
 
 
 def create_runtime(

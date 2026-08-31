@@ -7,8 +7,31 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from ire import __version__
 from ire.web.batch import parse_batch_upload
 from ire.web.dependencies import WebRuntime, get_runtime
-from ire.web.presenters import dashboard_snapshot, list_golden_records, list_reviews, present_batch_results, present_golden_record, present_process_result, present_review_detail
-from ire.web.schemas import ApproveReviewRequest, IdentityEnvelope, RejectReviewRequest
+from ire.web.presenters import (
+    dashboard_snapshot,
+    list_golden_records,
+    list_reviews,
+    present_batch_results,
+    present_compare_result,
+    present_golden_record,
+    present_merge_preview,
+    present_merge_result,
+    present_override_result,
+    present_process_result,
+    present_review_detail,
+    present_rollback_preview,
+    present_rollback_result,
+    present_timeline,
+)
+from ire.web.schemas import (
+    ApproveReviewRequest,
+    IdentityEnvelope,
+    MergePreviewRequest,
+    MergeRequest,
+    PrimaryOverrideRequest,
+    RejectReviewRequest,
+    RollbackRequest,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["api"])
 
@@ -48,6 +71,16 @@ async def batch_identity(file: UploadFile = File(...), runtime: WebRuntime = Dep
 @router.get("/golden-records")
 def golden_records(runtime: WebRuntime = Depends(get_runtime)) -> list[dict[str, Any]]:
     return list_golden_records(runtime.repo)
+
+
+@router.get("/golden-records/compare")
+def compare_golden(
+    left: str = Query(..., min_length=1),
+    right: str = Query(..., min_length=1),
+    runtime: WebRuntime = Depends(get_runtime),
+) -> dict[str, Any]:
+    result = runtime.compare_golden_fn(left, right, runtime.repo)
+    return present_compare_result(result)
 
 
 @router.get("/golden-records/{golden_id}")
@@ -102,3 +135,65 @@ def review_reject(task_id: str, payload: RejectReviewRequest, runtime: WebRuntim
 @router.get("/dashboard")
 def dashboard_data(runtime: WebRuntime = Depends(get_runtime)) -> dict[str, Any]:
     return dashboard_snapshot(runtime.repo)
+
+
+@router.post("/golden-records/{golden_id}/primary-values/{field_name}")
+def override_primary(
+    golden_id: str,
+    field_name: str,
+    payload: PrimaryOverrideRequest,
+    runtime: WebRuntime = Depends(get_runtime),
+) -> dict[str, Any]:
+    result = runtime.override_primary_fn(
+        golden_id, field_name, payload.value_id, payload.actor, payload.reason, runtime.repo
+    )
+    return present_override_result(result, runtime.repo)
+
+
+@router.post("/golden-records/merge/preview")
+def merge_preview(payload: MergePreviewRequest, runtime: WebRuntime = Depends(get_runtime)) -> dict[str, Any]:
+    result = runtime.preview_merge_fn(
+        payload.survivor_id, payload.loser_id, runtime.repo, payload.proposed_selections
+    )
+    return present_merge_preview(result)
+
+
+@router.post("/golden-records/merge")
+def merge_golden(payload: MergeRequest, runtime: WebRuntime = Depends(get_runtime)) -> dict[str, Any]:
+    result = runtime.merge_golden_fn(
+        payload.survivor_id,
+        payload.loser_id,
+        payload.actor,
+        payload.reason,
+        runtime.repo,
+        payload.expected_survivor_version,
+        payload.expected_loser_version,
+        payload.proposed_selections,
+    )
+    return present_merge_result(result, runtime.repo)
+
+
+@router.get("/golden-records/merge/{merge_id}/rollback-preview")
+def merge_rollback_preview(merge_id: str, runtime: WebRuntime = Depends(get_runtime)) -> dict[str, Any]:
+    result = runtime.rollback_preview_fn(merge_id, runtime.repo)
+    return present_rollback_preview(result, runtime.repo)
+
+
+@router.post("/golden-records/merge/{merge_id}/rollback")
+def merge_rollback(
+    merge_id: str,
+    payload: RollbackRequest,
+    runtime: WebRuntime = Depends(get_runtime),
+) -> dict[str, Any]:
+    result = runtime.rollback_merge_fn(merge_id, payload.actor, payload.reason, runtime.repo)
+    return present_rollback_result(result, runtime.repo)
+
+
+@router.get("/golden-records/{golden_id}/timeline")
+def golden_timeline(
+    golden_id: str,
+    category: str | None = Query(default=None),
+    runtime: WebRuntime = Depends(get_runtime),
+) -> list[dict[str, Any]]:
+    entries = runtime.timeline_fn(golden_id, runtime.repo, category)
+    return present_timeline(entries)
