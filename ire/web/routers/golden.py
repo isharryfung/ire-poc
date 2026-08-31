@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -82,8 +84,9 @@ def golden_override_primary(
     reason: str = Form(...),
     runtime: WebRuntime = Depends(get_runtime),
 ):
-    runtime.override_primary_fn(golden_id, field_name, value_id, actor, reason, runtime.repo)
-    return RedirectResponse(url=f"/golden-records/{golden_id}?message=Primary+value+updated", status_code=303)
+    result = runtime.override_primary_fn(golden_id, field_name, value_id, actor, reason, runtime.repo)
+    safe_id = quote(result.golden_record.golden_record_id, safe="")
+    return RedirectResponse(url=f"/golden-records/{safe_id}?message=Primary+value+updated", status_code=303)
 
 
 @router.get("/golden-records/merge/preview")
@@ -119,8 +122,10 @@ def golden_merge(
     runtime: WebRuntime = Depends(get_runtime),
 ):
     result = runtime.merge_golden_fn(survivor_id, loser_id, actor, reason, runtime.repo, None, None, None)
+    safe_id = quote(result.survivor.golden_record_id, safe="")
+    merge_id = quote(result.merge_event.merge_id, safe="")
     return RedirectResponse(
-        url=f"/golden-records/{result.survivor.golden_record_id}?message=Merge+completed+({result.merge_event.merge_id})",
+        url=f"/golden-records/{safe_id}?message=Merge+completed+({merge_id})",
         status_code=303,
     )
 
@@ -144,8 +149,9 @@ def golden_rollback(
     runtime: WebRuntime = Depends(get_runtime),
 ):
     result = runtime.rollback_merge_fn(merge_id, actor, reason, runtime.repo)
+    safe_id = quote(result.survivor.golden_record_id, safe="")
     return RedirectResponse(
-        url=f"/golden-records/{result.survivor.golden_record_id}?message=Merge+rolled+back",
+        url=f"/golden-records/{safe_id}?message=Merge+rolled+back",
         status_code=303,
     )
 
