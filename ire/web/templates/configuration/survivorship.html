@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% import "macros/components.html" as comp %}
+{% block title %}Survivorship Policy · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Configuration', 'url': None}, {'label': 'Survivorship Policy', 'url': None}]) }}{% endblock %}
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Survivorship Policy</h1>
+    <p class="page-header__description">Read-only view of current survivorship behavior used when updating golden record primary values.</p>
+  </div>
+  <div>{{ comp.coming_soon_badge() }} <button class="btn btn-outline-secondary ms-2" disabled>Edit Policy</button></div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-4"><section class="surface-card h-100"><div class="surface-card__body"><h2 class="h5">Policy Summary</h2><dl class="definition-list mb-0"><div class="definition-list__item"><dt>Version</dt><dd>{{ policy.version }}</dd></div><div class="definition-list__item"><dt>Protect Manual Lock</dt><dd>{{ 'Yes' if policy.protect_manual_lock else 'No' }}</dd></div></dl></div></section></div>
+  <div class="col-lg-8"><section class="surface-card h-100"><div class="surface-card__body"><h2 class="h5">Field Strategies</h2><div class="table-shell"><div class="table-responsive"><table class="table"><thead><tr><th>Field Group</th><th>Strategy</th></tr></thead><tbody>{% for key, value in policy.field_strategies.items() %}<tr><td>{{ key }}</td><td>{{ value }}</td></tr>{% endfor %}</tbody></table></div></div></div></section></div>
+</div>
+{% endblock %}

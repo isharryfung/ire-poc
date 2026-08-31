@@ -1,3 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Request Error · IRE Demo{% endblock %}
-{% block content %}<div class="alert alert-danger"><h1 class="h3">Request error</h1><p>{{ message }}</p></div>{% endblock %}
+{% import "macros/components.html" as comp %}
+{% block title %}Request Error · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Request Error', 'url': None}]) }}{% endblock %}
+{% block page_header %}{{ comp.page_header('Request error', 'The submitted request could not be processed.') }}{% endblock %}
+{% block content %}<div class="notice-banner notice-banner--danger"><strong>{{ message }}</strong></div>{% endblock %}

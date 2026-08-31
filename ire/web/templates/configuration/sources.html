@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% import "macros/components.html" as comp %}
+{% block title %}Source Systems · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Configuration', 'url': None}, {'label': 'Source Systems', 'url': None}]) }}{% endblock %}
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Source Systems</h1>
+    <p class="page-header__description">Read-only view of configured source systems and their trust metadata.</p>
+  </div>
+  <div>{{ comp.coming_soon_badge() }} <button class="btn btn-outline-secondary ms-2" disabled>Edit Configuration</button></div>
+</div>
+{% endblock %}
+{% block content %}
+<section class="surface-card"><div class="surface-card__body"><div class="table-shell"><div class="table-responsive"><table class="table"><thead><tr><th>Code</th><th>Name</th><th>Trust Level</th><th>Trust Score</th><th>Internal</th><th>Active</th></tr></thead><tbody>{% for system in systems %}<tr><td>{{ system.code }}</td><td>{{ system.name }}</td><td>{{ comp.status_badge(system.trust_level) }}</td><td>{{ '%.2f'|format(system.trust_score) }}</td><td>{{ 'Yes' if system.internal else 'No' }}</td><td>{{ comp.status_badge('ACTIVE' if system.active else 'INACTIVE') }}</td></tr>{% endfor %}</tbody></table></div></div></div></section>
+{% endblock %}

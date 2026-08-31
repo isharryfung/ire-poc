@@ -1,49 +1,128 @@
 {% extends "base.html" %}
-{% block title %}Match Result · IRE Demo{% endblock %}
+{% import "macros/components.html" as comp %}
+{% block title %}Match Result · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Identity Resolution', 'url': '/identities/new'}, {'label': 'Result', 'url': None}]) }}{% endblock %}
+{% block page_header %}{{ comp.page_header('Match Result', 'Decision workspace for a single identity resolution request.') }}{% endblock %}
 {% block content %}
-<h1 class="mb-4">Match Result</h1>
-<div class="card border-{{ result.style }} mb-4">
-  <div class="card-body">
-    <span class="badge text-bg-{{ result.style }} mb-2">{{ result.outcome }}</span>
-    <h2 class="h4">Decision summary</h2>
-    <ul>
-      <li>Confidence: {{ '%.2f'|format(result.confidence) }}</li>
-      <li>Golden Record: {{ result.golden_record_id or 'None' }}</li>
-      <li>Match method: {{ result.match_method or 'N/A' }}</li>
-      <li>Match tier: {{ result.match_tier or 'N/A' }}</li>
-      <li>Reason: {{ result.reason }}</li>
-      <li>Safety flags: {{ result.safety_flags|join(', ') if result.safety_flags else 'None' }}</li>
-      <li>Review task: {% if result.review_task_id %}<a href="/reviews/{{ result.review_task_id }}">{{ result.review_task_id }}</a>{% else %}None{% endif %}</li>
-    </ul>
+{% if is_preview %}
+  <div class="notice-banner notice-banner--info mb-4"><strong>Preview Only – No Changes Made</strong><div class="helper-text mt-1">This outcome was generated via the preview service and did not persist any records.</div></div>
+{% endif %}
+
+{% set explanation = {
+  'AUTO_MERGE': 'The incoming record met the configured safety and confidence threshold for automatic merge.',
+  'MANUAL_REVIEW': 'The incoming record matched a candidate, but analyst approval is required before any merge occurs.',
+  'CREATE_NEW_GOLDEN': 'No sufficiently strong candidate was found, so a new golden record was created or proposed.',
+  'VALIDATION_FAILED': 'The incoming record did not pass validation and was not eligible for matching.'
+}.get(result.outcome, 'The record was processed using the current Phase 1 rules.') %}
+
+<div class="notice-banner notice-banner--{{ result.style }} mb-4">
+  <div class="d-flex flex-wrap justify-content-between gap-3 align-items-center">
+    <div>
+      <div class="mb-2">{{ comp.decision_badge(result.outcome) }}</div>
+      <strong>{{ explanation }}</strong>
+    </div>
+    <a class="btn btn-outline-primary" href="/identities/new">Resolve Another</a>
   </div>
 </div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-7">
+    <section class="surface-card h-100">
+      <div class="surface-card__body">
+        <h2 class="h5 mb-3">Decision Summary</h2>
+        <dl class="definition-list mb-0">
+          <div class="definition-list__item"><dt>Decision</dt><dd>{{ comp.decision_badge(result.outcome) }}</dd></div>
+          <div class="definition-list__item"><dt>Confidence</dt><dd>{{ comp.confidence_bar(result.confidence) }}</dd></div>
+          <div class="definition-list__item"><dt>Golden Record</dt><dd>{% if result.golden_record_id %}<a href="/golden-records/{{ result.golden_record_id }}">{{ result.golden_record_id }}</a>{% else %}—{% endif %}</dd></div>
+          <div class="definition-list__item"><dt>Match Method</dt><dd>{{ result.match_method or 'N/A' }}</dd></div>
+          <div class="definition-list__item"><dt>Match Tier</dt><dd>{{ result.match_tier or 'N/A' }}</dd></div>
+          <div class="definition-list__item"><dt>Review Task</dt><dd>{% if result.review_task_id %}<a href="/reviews/{{ result.review_task_id }}">{{ result.review_task_id }}</a>{% else %}None{% endif %}</dd></div>
+          <div class="definition-list__item"><dt>Reason</dt><dd>{{ result.reason or '—' }}</dd></div>
+          <div class="definition-list__item"><dt>Safety Flags</dt><dd>{{ result.safety_flags|join(', ') if result.safety_flags else 'None' }}</dd></div>
+        </dl>
+      </div>
+    </section>
+  </div>
+  <div class="col-xl-5">
+    <section class="surface-card h-100">
+      <div class="surface-card__body">
+        <h2 class="h5 mb-3">Submitted Record</h2>
+        <dl class="definition-list mb-0">
+          {% for key, value in form_data.items() if value %}
+            <div class="definition-list__item"><dt>{{ key.replace('_', ' ')|title }}</dt><dd>{{ value }}</dd></div>
+          {% endfor %}
+          {% if not form_data %}<div class="helper-text">No submitted field snapshot is available.</div>{% endif %}
+        </dl>
+      </div>
+    </section>
+  </div>
+</div>
+
 {% if result.validation_issues %}
-<div class="card card-body mb-4">
-  <h2 class="h5">Validation issues</h2>
-  <ul>{% for issue in result.validation_issues %}<li>{{ issue.field }} · {{ issue.code }} · {{ issue.message }}</li>{% endfor %}</ul>
-</div>
-{% endif %}
-{% if result.available_evidence %}
-<div class="card card-body mb-4">
-  <h2 class="h5">Field-level evidence</h2>
-  <div class="table-responsive">
-    <table class="table table-sm table-striped">
-      <thead><tr><th>Field</th><th>Incoming</th><th>Golden</th><th>Algorithm</th><th>Score</th><th>Weight</th></tr></thead>
-      <tbody>
-        {% for item in result.available_evidence %}
-        <tr>
-          <td>{{ item.field }}</td>
-          <td>{{ item.raw_a or '—' }}</td>
-          <td>{{ item.raw_b or '—' }}</td>
-          <td>{{ item.algorithm }}</td>
-          <td>{{ '%.2f'|format(item.similarity) }}</td>
-          <td>{{ '%.2f'|format(item.normalized_weight) }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+<section class="surface-card mb-4">
+  <div class="surface-card__body">
+    <h2 class="h5">Validation Issues</h2>
+    <div class="table-shell mt-3">
+      <div class="table-responsive">
+        <table class="table">
+          <thead><tr><th>Field</th><th>Code</th><th>Message</th></tr></thead>
+          <tbody>
+            {% for issue in result.validation_issues %}
+              <tr><td>{{ issue.field }}</td><td>{{ issue.code }}</td><td>{{ issue.message }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
-</div>
+</section>
 {% endif %}
-<a class="btn btn-outline-primary" href="/identities/new">Submit another identity</a>
+
+{% if result.available_evidence %}
+<section class="surface-card mb-4">
+  <div class="surface-card__body">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="h5 mb-0">Field-level Evidence</h2>
+      {% if result.best_candidate and result.best_candidate.golden_record_id %}<a class="btn btn-sm btn-outline-primary" href="/golden-records/{{ result.best_candidate.golden_record_id }}">Open Golden Record</a>{% endif %}
+    </div>
+    <div class="table-shell">
+      <div class="table-responsive">
+        <table class="table">
+          <thead><tr><th>Field</th><th>Incoming Value</th><th>Golden Value</th><th>Algorithm</th><th>Similarity</th><th>Priority</th><th>Weight</th><th>Weighted Contribution</th><th>State</th></tr></thead>
+          <tbody>
+            {% for item in result.available_evidence %}
+              {% if item.similarity >= 0.8 %}
+                {% set state_tone = 'success' %}{% set state_label = 'Match' %}
+              {% elif item.similarity >= 0.5 %}
+                {% set state_tone = 'warning' %}{% set state_label = 'Partial' %}
+              {% elif item.similarity == 0 and item.is_comparable %}
+                {% set state_tone = 'danger' %}{% set state_label = 'Conflict' %}
+              {% else %}
+                {% set state_tone = 'secondary' %}{% set state_label = 'Not Comparable' %}
+              {% endif %}
+              <tr>
+                <td>{{ item.field }}</td>
+                <td>{{ item.raw_a or '—' }}</td>
+                <td>{{ item.raw_b or '—' }}</td>
+                <td>{{ item.algorithm }}</td>
+                <td>{{ comp.confidence_bar(item.similarity) }}</td>
+                <td>{{ item.priority }}</td>
+                <td>{{ '%.2f'|format(item.normalized_weight) }}</td>
+                <td>{{ '%.2f'|format(item.weighted_score) }}</td>
+                <td><span class="status-badge status-{{ state_tone }}">{{ state_label }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<div class="d-flex gap-2 flex-wrap">
+  {% if result.golden_record_id %}<a class="btn btn-primary" href="/golden-records/{{ result.golden_record_id }}">Open Golden Record</a>{% endif %}
+  {% if result.review_task_id %}<a class="btn btn-outline-primary" href="/reviews/{{ result.review_task_id }}">Open Review Task</a>{% endif %}
+  <a class="btn btn-outline-secondary" href="/identities/new">Resolve Another</a>
+</div>
 {% endblock %}

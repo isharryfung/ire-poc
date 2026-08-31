@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% import "macros/components.html" as comp %}
+{% block title %}Record Links · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Identity Management', 'url': None}, {'label': 'Record Links', 'url': None}]) }}{% endblock %}
+{% block page_header %}{{ comp.page_header('Record Links', 'Browse persisted source-to-golden linkages created by the existing Phase 1 resolution flow.') }}{% endblock %}
+{% block content %}
+<section class="surface-card mb-4">
+  <div class="surface-card__body">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-lg-5"><label class="form-label" for="q">Search</label><input class="form-control" id="q" name="q" value="{{ filters.q }}" placeholder="Link ID, source record, or golden record"></div>
+      <div class="col-lg-3"><label class="form-label" for="status">Status</label><select class="form-select" id="status" name="status"><option value="">All statuses</option>{% for value in ['ACTIVE', 'INACTIVE', 'REVOKED'] %}<option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
+      <div class="col-lg-4 d-flex gap-2"><button class="btn btn-primary" type="submit">Apply Filters</button><a class="btn btn-outline-secondary" href="/record-links">Reset</a></div>
+    </form>
+    <div class="helper-text mt-3">{{ result_count }} result(s)</div>
+  </div>
+</section>
+
+{% if links %}
+<section class="surface-card">
+  <div class="surface-card__body">
+    <div class="table-shell">
+      <div class="table-responsive">
+        <table class="table">
+          <thead><tr><th>Link ID</th><th>Source Record ID</th><th>Golden Record ID</th><th>Status</th><th>Confidence</th><th>Created At</th><th>Updated At</th></tr></thead>
+          <tbody>
+            {% for link in links %}
+              <tr>
+                <td>{{ link.link_id }}</td>
+                <td>{{ link.source_record_id }}</td>
+                <td><a href="/golden-records/{{ link.golden_record_id }}">{{ link.golden_record_id }}</a></td>
+                <td>{{ comp.status_badge(link.status) }}</td>
+                <td>{{ comp.confidence_bar(link.confidence) }}</td>
+                <td>{{ link.created_at }}</td>
+                <td>{{ link.updated_at }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+{% else %}
+  {{ comp.empty_state('No record links found.', 'Persisted record links will appear after successful resolution actions.', '/identities/new', 'Submit Identity') }}
+{% endif %}
+{% endblock %}

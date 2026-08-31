@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% import "macros/components.html" as comp %}
+{% block title %}Matching Policy · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Configuration', 'url': None}, {'label': 'Matching Policy', 'url': None}]) }}{% endblock %}
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Matching Policy</h1>
+    <p class="page-header__description">Read-only view of active thresholds, algorithms, priorities, and safety settings.</p>
+  </div>
+  <div>{{ comp.coming_soon_badge() }} <button class="btn btn-outline-secondary ms-2" disabled>Edit Policy</button></div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-6"><section class="surface-card h-100"><div class="surface-card__body"><h2 class="h5">Policy Summary</h2><dl class="definition-list mb-0"><div class="definition-list__item"><dt>Version</dt><dd>{{ policy.version }}</dd></div><div class="definition-list__item"><dt>Candidate Limit</dt><dd>{{ policy.candidate_limit }}</dd></div><div class="definition-list__item"><dt>Full Scan Limit</dt><dd>{{ policy.full_scan_limit }}</dd></div><div class="definition-list__item"><dt>Minimum Comparable Fields</dt><dd>{{ policy.min_comparable_fields }}</dd></div></dl></div></section></div>
+  <div class="col-lg-6"><section class="surface-card h-100"><div class="surface-card__body"><h2 class="h5">Thresholds</h2><dl class="definition-list mb-0"><div class="definition-list__item"><dt>Auto Merge</dt><dd>{{ '%.2f'|format(policy.thresholds.auto_merge) }}</dd></div><div class="definition-list__item"><dt>Manual Review</dt><dd>{{ '%.2f'|format(policy.thresholds.manual_review) }}</dd></div><div class="definition-list__item"><dt>Candidate Gap</dt><dd>{{ '%.2f'|format(policy.thresholds.candidate_gap) }}</dd></div></dl></div></section></div>
+  <div class="col-lg-6"><section class="surface-card"><div class="surface-card__body"><h2 class="h5">Field Priorities</h2><ol class="mb-0">{% for field in policy.field_priorities %}<li>{{ field }}</li>{% endfor %}</ol></div></section></div>
+  <div class="col-lg-6"><section class="surface-card"><div class="surface-card__body"><h2 class="h5">Algorithms & Safety</h2><div class="mb-3"><strong>Algorithms</strong><ul class="mb-0 mt-2">{% for algorithm in policy.algorithms %}<li>{{ algorithm }}</li>{% endfor %}</ul></div><div><strong>Safety Settings</strong><ul class="mb-0 mt-2">{% for key, value in policy.safety.items() %}<li>{{ key }}: {{ value }}</li>{% endfor %}</ul></div></div></section></div>
+</div>
+{% endblock %}

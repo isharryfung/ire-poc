@@ -1,45 +1,134 @@
 {% extends "base.html" %}
-{% block title %}{{ golden.golden_record_id }} · IRE Demo{% endblock %}
+{% import "macros/components.html" as comp %}
+{% block title %}{{ golden.golden_record_id }} · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Identity Management', 'url': None}, {'label': 'Golden Records', 'url': '/golden-records'}, {'label': golden.golden_record_id, 'url': None}]) }}{% endblock %}
+{% block page_header %}
+<div class="page-header">
+  <div>
+    {% set first_name = golden.primary_values.get('first_name', {}).get('raw_value') %}
+    {% set last_name = golden.primary_values.get('last_name', {}).get('raw_value') %}
+    <h1 class="page-header__title">{{ ((first_name or '') ~ ' ' ~ (last_name or '')).strip() or golden.golden_record_id }}</h1>
+    <p class="page-header__description">Golden ID {{ golden.golden_record_id }} · {{ comp.status_badge(golden.status) }} · Version {{ golden.version }} · Updated {{ golden.updated_at }}</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-primary" href="/identities/new">Resolve Another Record</a>
+  </div>
+</div>
+{% endblock %}
 {% block content %}
-<h1 class="mb-4">Golden Record {{ golden.golden_record_id }}</h1>
-<ul>
-  <li>Status: {{ golden.status }}</li>
-  <li>Version: {{ golden.version }}</li>
-  <li>Created: {{ golden.created_at }}</li>
-  <li>Updated: {{ golden.updated_at }}</li>
-  <li>Superseded by: {{ golden.superseded_by or '—' }}</li>
-</ul>
-<div class="row g-4">
-  <div class="col-lg-6">
-    <h2 class="h4">Primary Values</h2>
-    <ul class="list-group">
-      {% for field_name, value in golden.primary_values.items() %}
-      <li class="list-group-item"><strong>{{ field_name }}</strong>: {{ value.raw_value }}{% if value.manual_lock %} (manual lock){% endif %}{% if value.is_verified %} (verified){% endif %}</li>
-      {% endfor %}
-    </ul>
-  </div>
-  <div class="col-lg-6">
-    <h2 class="h4">Active Record Links</h2>
-    {% if golden.active_record_links %}
-    <ul class="list-group">
-      {% for link in golden.active_record_links %}
-      <li class="list-group-item">{{ link.source_record_id }} · {{ link.status }} · {{ '%.2f'|format(link.confidence) }}</li>
-      {% endfor %}
-    </ul>
-    {% else %}<p class="text-muted">No active links.</p>{% endif %}
-  </div>
+{% if golden.is_superseded %}
+  <div class="notice-banner notice-banner--warning mb-4"><strong>Superseded record.</strong> This profile has been superseded{% if golden.superseded_by %} by <a href="/golden-records/{{ golden.superseded_by }}">{{ golden.superseded_by }}</a>{% endif %}.</div>
+{% endif %}
+
+<div class="callout mb-4">
+  <strong>Primary Values vs All Known Values</strong>
+  <p class="helper-text mb-0 mt-2">Primary Values show the currently selected survivorship output. All Known Values includes each retained value by field, along with verification, trust, and source metadata.</p>
 </div>
-<div class="mt-4">
-  <h2 class="h4">All Known Values</h2>
-  {% for field_name, values in golden.all_known_values.items() %}
-  <div class="card card-body mb-3">
-    <h3 class="h6">{{ field_name }}</h3>
-    <ul class="mb-0">
-      {% for value in values %}
-      <li>{{ value.raw_value }} · {{ value.source_system }} · trust {{ '%.2f'|format(value.trust_score) }}{% if value.is_primary %} · primary{% endif %}{% if value.is_verified %} · verified{% endif %}{% if value.manual_lock %} · manual lock{% endif %}</li>
-      {% endfor %}
+
+<section class="surface-card">
+  <div class="surface-card__body">
+    <ul class="nav nav-tabs" id="golden-tabs" role="tablist">
+      <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#golden-overview" type="button" role="tab">Overview</button></li>
+      <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#golden-values" type="button" role="tab">All Known Values</button></li>
+      <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#golden-links" type="button" role="tab">Source Records</button></li>
+      <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#golden-history" type="button" role="tab">History</button></li>
     </ul>
+    <div class="tab-content">
+      <div class="tab-pane fade show active" id="golden-overview" role="tabpanel">
+        <div class="row g-4">
+          <div class="col-lg-7">
+            <h2 class="h5">Primary Values</h2>
+            <div class="table-shell">
+              <div class="table-responsive">
+                <table class="table">
+                  <thead><tr><th>Field</th><th>Value</th><th>Source</th><th>Attributes</th></tr></thead>
+                  <tbody>
+                    {% for field_name, value in golden.primary_values.items() %}
+                      <tr>
+                        <td>{{ field_name }}</td>
+                        <td>{{ value.raw_value }}</td>
+                        <td>{{ value.source_system }}</td>
+                        <td>{% if value.is_verified %}Verified {% endif %}{% if value.manual_lock %}· Manual Lock{% endif %}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-5">
+            <h2 class="h5">Identity Summary</h2>
+            <dl class="definition-list mb-0">
+              <div class="definition-list__item"><dt>Link Count</dt><dd>{{ golden.active_record_links|length }}</dd></div>
+              <div class="definition-list__item"><dt>Version</dt><dd>{{ golden.version }}</dd></div>
+              <div class="definition-list__item"><dt>Created</dt><dd>{{ golden.created_at }}</dd></div>
+              <div class="definition-list__item"><dt>Last Updated</dt><dd>{{ golden.updated_at }}</dd></div>
+              <div class="definition-list__item"><dt>Status</dt><dd>{{ comp.status_badge(golden.status) }}</dd></div>
+            </dl>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-pane fade" id="golden-values" role="tabpanel">
+        <h2 class="h5">All Known Values</h2>
+        {% for field_name, values in golden.all_known_values.items() %}
+          <div class="table-shell mb-4">
+            <div class="table-responsive">
+              <table class="table">
+                <thead><tr><th colspan="7">{{ field_name }}</th></tr><tr><th>Value</th><th>Source System</th><th>Trust Score</th><th>Verified</th><th>Primary</th><th>Manual Lock</th><th>Observed At</th></tr></thead>
+                <tbody>
+                  {% for value in values %}
+                    <tr>
+                      <td>{{ value.raw_value }}</td>
+                      <td>{{ value.source_system }}</td>
+                      <td>{{ '%.2f'|format(value.trust_score) }}</td>
+                      <td>{{ 'Yes' if value.is_verified else 'No' }}</td>
+                      <td>{{ 'Yes' if value.is_primary else 'No' }}</td>
+                      <td>{{ 'Yes' if value.manual_lock else 'No' }}</td>
+                      <td>{{ value.observed_at }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="tab-pane fade" id="golden-links" role="tabpanel">
+        <h2 class="h5">Source Records</h2>
+        {% if golden.active_record_links %}
+          <div class="table-shell">
+            <div class="table-responsive">
+              <table class="table">
+                <thead><tr><th>Link ID</th><th>Source Record ID</th><th>Confidence</th><th>Status</th><th>Created At</th></tr></thead>
+                <tbody>
+                  {% for link in golden.active_record_links %}
+                    <tr>
+                      <td>{{ link.link_id }}</td>
+                      <td>{{ link.source_record_id }}</td>
+                      <td>{{ comp.confidence_bar(link.confidence) }}</td>
+                      <td>{{ comp.status_badge(link.status) }}</td>
+                      <td>{{ link.created_at }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% else %}
+          {{ comp.empty_state('No active source record links.', 'Active links will appear once source records are persisted against this golden profile.') }}
+        {% endif %}
+      </div>
+
+      <div class="tab-pane fade" id="golden-history" role="tabpanel">
+        <div class="callout">
+          <strong>History events from JSONL available via Activity Log</strong>
+          <p class="helper-text mb-0 mt-2">Operational event history is exposed in the Activity Log workspace for this prototype.</p>
+          <a class="btn btn-outline-primary mt-3" href="/activity">Open Activity Log</a>
+        </div>
+      </div>
+    </div>
   </div>
-  {% endfor %}
-</div>
+</section>
 {% endblock %}

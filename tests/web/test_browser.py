@@ -28,12 +28,28 @@ def _create_client(tmp_path: Path) -> TestClient:
     return TestClient(create_app(root_dir=tmp_path / "repo", config_dir=CONFIG_DIR))
 
 
+def _state_snapshot(root: Path) -> dict[str, str]:
+    repo_root = root / "repo"
+    paths = [
+        repo_root / "state" / "golden_records.json",
+        repo_root / "state" / "record_links.json",
+        repo_root / "state" / "review_tasks.json",
+        repo_root / "events" / "source_records.jsonl",
+        repo_root / "events" / "match_runs.jsonl",
+        repo_root / "events" / "merge_history.jsonl",
+        repo_root / "events" / "audit_log.jsonl",
+    ]
+    return {path.name: path.read_text(encoding="utf-8") for path in paths}
+
+
 def test_dashboard_renders_empty_and_current_metrics(tmp_path: Path) -> None:
     client = _create_client(tmp_path)
     empty = client.get("/")
     assert empty.status_code == 200
-    assert "Phase 1.1 Demo Dashboard" in empty.text
+    assert "IRE Operations Portal" in empty.text
+    assert "Identity Resolution Dashboard" in empty.text
     assert "No match decisions yet." in empty.text
+    assert "Phase 2" in empty.text
 
     repo = client.app.state.runtime.repo
     config = load_config(CONFIG_DIR)
@@ -50,11 +66,29 @@ def test_dashboard_renders_empty_and_current_metrics(tmp_path: Path) -> None:
     assert "PORTAL" in populated.text
 
 
-def test_identity_submission_batch_page_and_review_queue_render(tmp_path: Path) -> None:
+def test_identity_submission_preview_batch_page_and_review_queue_render(tmp_path: Path) -> None:
     client = _create_client(tmp_path)
     form = client.get("/identities/new")
     assert form.status_code == 200
     assert "Submit Identity" in form.text
+
+    before = _state_snapshot(tmp_path)
+    preview = client.post(
+        "/identities/preview",
+        data={
+            "source_system": "SIS",
+            "source_pk": "preview-1",
+            "first_name": "John",
+            "last_name": "Chan",
+            "email": "john@example.com",
+            "phone": "61234567",
+            "date_of_birth": "1990-01-01",
+        },
+    )
+    after = _state_snapshot(tmp_path)
+    assert preview.status_code == 200
+    assert "Preview Only – No Changes Made" in preview.text
+    assert before == after
 
     submit = client.post(
         "/identities/new",
@@ -82,7 +116,7 @@ def test_identity_submission_batch_page_and_review_queue_render(tmp_path: Path) 
     )
     assert batch.status_code == 200
     assert "Batch Summary" in batch.text
-    assert "Validation failure" in batch.text
+    assert "Validation Failures" in batch.text
 
     repo = client.app.state.runtime.repo
     config = load_config(CONFIG_DIR)
@@ -90,10 +124,10 @@ def test_identity_submission_batch_page_and_review_queue_render(tmp_path: Path) 
     queue = client.get("/reviews")
     assert queue.status_code == 200
     assert "Review Queue" in queue.text
-    assert "PORTAL / 4" in queue.text
+    assert "PORTAL" in queue.text
 
 
-def test_review_detail_render_redirect_completed_actions_and_masking(tmp_path: Path) -> None:
+def test_review_detail_render_completed_actions_and_masking(tmp_path: Path) -> None:
     client = _create_client(tmp_path)
     repo = client.app.state.runtime.repo
     config = load_config(CONFIG_DIR)
@@ -125,6 +159,33 @@ def test_review_detail_render_redirect_completed_actions_and_masking(tmp_path: P
     assert "Primary Values" in golden.text
     assert "All Known Values" in golden.text
     assert "j**n@example.com" in golden.text or "j**n@example.com" in completed.text
+
+
+def test_additional_pages_filters_and_masking(tmp_path: Path) -> None:
+    client = _create_client(tmp_path)
+    repo = client.app.state.runtime.repo
+    config = load_config(CONFIG_DIR)
+    process_record(_seed_record(source_pk="1", emplid="E1", first_name="Alice", last_name="Chan", email="alice@example.com", phone="61234567", date_of_birth="1990-01-01"), config, repo)
+    process_record(_seed_record(source_system="PORTAL", source_pk="2", first_name="Alice", last_name="Chan", email="alice@example.com", phone="61234567", date_of_birth="1990-01-01"), config, repo)
+
+    golden_list = client.get("/golden-records", params={"q": "Alice"})
+    assert golden_list.status_code == 200
+    assert "Golden Records" in golden_list.text
+    assert "a***e@example.com" in golden_list.text
+    assert "alice@example.com" not in golden_list.text
+
+    pages = {
+        "/record-links": "Record Links",
+        "/match-history": "Match History",
+        "/activity": "Activity Log",
+        "/configuration/sources": "Source Systems",
+        "/configuration/matching": "Matching Policy",
+        "/configuration/survivorship": "Survivorship Policy",
+    }
+    for path, text in pages.items():
+        response = client.get(path)
+        assert response.status_code == 200
+        assert text in response.text
 
 
 def test_review_detail_shows_alternate_candidates_when_available(tmp_path: Path) -> None:

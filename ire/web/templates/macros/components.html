@@ -1,0 +1,94 @@
+{% macro decision_badge(decision) -%}
+  {% set tone = {
+    'AUTO_MERGE': 'success',
+    'MANUAL_REVIEW': 'warning',
+    'CREATE_NEW_GOLDEN': 'info',
+    'VALIDATION_FAILED': 'danger',
+    'DUPLICATE': 'secondary'
+  }.get((decision or '')|upper, 'secondary') %}
+  <span class="status-badge status-{{ tone }}">{{ decision or 'Unknown' }}</span>
+{%- endmacro %}
+
+{% macro status_badge(status) -%}
+  {% set tone = {
+    'ACTIVE': 'success',
+    'OPEN': 'warning',
+    'CLOSED': 'secondary',
+    'IN_PROGRESS': 'info',
+    'SUPERSEDED': 'danger',
+    'MERGED': 'primary',
+    'INACTIVE': 'secondary',
+    'VALIDATED': 'success',
+    'REJECTED': 'danger',
+    'RECEIVED': 'info'
+  }.get((status or '')|upper, 'secondary') %}
+  <span class="status-badge status-{{ tone }}">{{ status or 'Unknown' }}</span>
+{%- endmacro %}
+
+{% macro confidence_bar(confidence) -%}
+  {% set base = confidence if confidence is not none else 0 %}
+  {% set percent = (base * 100) if base <= 1 else base %}
+  <div class="confidence" aria-label="Confidence {{ '%.0f'|format(percent) }} percent">
+    <div class="confidence__row">
+      <span class="confidence__label">Confidence</span>
+      <strong>{{ '%.0f'|format(percent) }}%</strong>
+    </div>
+    <div class="progress" role="progressbar" aria-valuenow="{{ '%.0f'|format(percent) }}" aria-valuemin="0" aria-valuemax="100">
+      <div class="progress-bar bg-enterprise" style="width: {{ '%.0f'|format(percent) }}%"></div>
+    </div>
+  </div>
+{%- endmacro %}
+
+{% macro kpi_card(label, value, sublabel=None, color=None) -%}
+  <div class="surface-card kpi-card kpi-accent-{{ color or 'info' }}">
+    <div class="surface-card__body">
+      <div class="kpi-card__label">{{ label }}</div>
+      <div class="kpi-card__value">{{ value }}</div>
+      {% if sublabel %}<div class="kpi-card__sub">{{ sublabel }}</div>{% endif %}
+    </div>
+  </div>
+{%- endmacro %}
+
+{% macro empty_state(title, description, action_url=None, action_label=None) -%}
+  <div class="empty-state">
+    <div class="empty-state__title">{{ title }}</div>
+    <p class="empty-state__description mb-3">{{ description }}</p>
+    {% if action_url and action_label %}<a class="btn btn-primary" href="{{ action_url }}">{{ action_label }}</a>{% endif %}
+  </div>
+{%- endmacro %}
+
+{% macro coming_soon_badge() -%}
+  <span class="status-badge status-secondary">Coming Soon</span>
+{%- endmacro %}
+
+{% macro phase2_badge() -%}
+  <span class="status-badge status-info">Phase 2</span>
+{%- endmacro %}
+
+{% macro readonly_badge() -%}
+  <span class="status-badge status-secondary">Read Only</span>
+{%- endmacro %}
+
+{% macro breadcrumbs(items) -%}
+  <nav class="breadcrumb-nav" aria-label="Breadcrumb">
+    <ol class="breadcrumb">
+      {% for item in items %}
+        {% if item.url %}
+          <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.label }}</a></li>
+        {% else %}
+          <li class="breadcrumb-item active" aria-current="page">{{ item.label }}</li>
+        {% endif %}
+      {% endfor %}
+    </ol>
+  </nav>
+{%- endmacro %}
+
+{% macro page_header(title, description=None, breadcrumb_items=None) -%}
+  {% if breadcrumb_items %}{{ breadcrumbs(breadcrumb_items) }}{% endif %}
+  <div class="page-header">
+    <div>
+      <h1 class="page-header__title">{{ title }}</h1>
+      {% if description %}<p class="page-header__description">{{ description }}</p>{% endif %}
+    </div>
+  </div>
+{%- endmacro %}

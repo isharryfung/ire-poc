@@ -1,3 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Conflict · IRE Demo{% endblock %}
-{% block content %}<div class="alert alert-warning"><h1 class="h3">Conflict</h1><p>{{ message }}</p></div>{% endblock %}
+{% import "macros/components.html" as comp %}
+{% block title %}Conflict · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Conflict', 'url': None}]) }}{% endblock %}
+{% block page_header %}{{ comp.page_header('Conflict', 'The requested operation conflicts with the current record state.') }}{% endblock %}
+{% block content %}<div class="notice-banner notice-banner--warning"><strong>{{ message }}</strong></div>{% endblock %}
