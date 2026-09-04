@@ -3,10 +3,22 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import Response
 
 from ire import __version__
 from ire.web.batch import parse_batch_upload
 from ire.web.dependencies import WebRuntime, get_runtime
+from ire.governance import (
+    data_quality_summary,
+    duplicate_scan,
+    export_dataset,
+    integrity_check,
+    integrity_repair_preview,
+    list_duplicate_candidates,
+    sanitize_download_name,
+    show_duplicate_candidate,
+    update_duplicate_candidate_status,
+)
 from ire.web.presenters import (
     dashboard_snapshot,
     list_golden_records,
@@ -31,6 +43,7 @@ from ire.web.schemas import (
     PrimaryOverrideRequest,
     RejectReviewRequest,
     RollbackRequest,
+    DuplicateStatusUpdateRequest,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["api"])
@@ -197,3 +210,91 @@ def golden_timeline(
 ) -> list[dict[str, Any]]:
     entries = runtime.timeline_fn(golden_id, runtime.repo, category)
     return present_timeline(entries)
+
+
+@router.post("/duplicates/scan")
+def duplicates_scan(runtime: WebRuntime = Depends(get_runtime)) -> dict[str, Any]:
+    return duplicate_scan(runtime.repo, runtime.config, include_superseded=False)
+
+
+@router.get("/duplicates")
+def duplicates_list(
+    status: str | None = Query(default=None),
+    severity: str | None = Query(default=None),
+    min_score: float | None = Query(default=None, ge=0.0, le=1.0),
+    max_score: float | None = Query(default=None, ge=0.0, le=1.0),
+    has_conflict: bool | None = Query(default=None),
+    golden_id: str | None = Query(default=None),
+    scan_run: str | None = Query(default=None),
+    search: str | None = Query(default=None),
+    runtime: WebRuntime = Depends(get_runtime),
+) -> list[dict[str, Any]]:
+    rows = list_duplicate_candidates(
+        runtime.repo,
+        status=status,
+        severity=severity,
+        min_score=min_score,
+        max_score=max_score,
+        has_conflict=has_conflict,
+        golden_id=golden_id,
+        scan_run_id=scan_run,
+        search=search,
+    )
+    return [item.to_dict() for item in rows]
+
+
+@router.get("/duplicates/{candidate_id}")
+def duplicates_show(candidate_id: str, runtime: WebRuntime = Depends(get_runtime)) -> dict[str, Any]:
+    return show_duplicate_candidate(runtime.repo, candidate_id).to_dict()
+
+
+@router.post("/duplicates/{candidate_id}/status")
+def duplicates_update_status(
+    candidate_id: str,
+    payload: DuplicateStatusUpdateRequest,
+    runtime: WebRuntime = Depends(get_runtime),
+) -> dict[str, Any]:
+    return update_duplicate_candidate_status(
+        runtime.repo,
+        candidate_id,
+        payload.status,
+        actor=payload.actor,
+        reason=payload.reason,
+    ).to_dict()
+
+
+@router.get("/integrity/check")
+def integrity_check_api(runtime: WebRuntime = Depends(get_runtime)) -> dict[str, Any]:
+    return integrity_check(runtime.repo).to_dict()
+
+
+@router.get("/integrity/repair-preview")
+def integrity_repair_preview_api(runtime: WebRuntime = Depends(get_runtime)) -> dict[str, Any]:
+    return integrity_repair_preview(runtime.repo)
+
+
+@router.get("/data-quality")
+def data_quality_api(
+    source_system: str | None = Query(default=None),
+    runtime: WebRuntime = Depends(get_runtime),
+) -> dict[str, Any]:
+    return data_quality_summary(runtime.repo, runtime.config, source_system=source_system)
+
+
+@router.get("/exports/{dataset}")
+def export_api(
+    dataset: str,
+    format: str = Query(..., pattern="^(csv|json)$"),
+    golden_id: str | None = Query(default=None),
+    runtime: WebRuntime = Depends(get_runtime),
+) -> Response:
+    content_type, content = export_dataset(
+        runtime.repo,
+        runtime.config,
+        dataset,
+        format,
+        filters={"golden_id": golden_id} if golden_id else {},
+    )
+    filename = sanitize_download_name(f"{dataset}.{format}")
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return Response(content=content, media_type=content_type, headers=headers)

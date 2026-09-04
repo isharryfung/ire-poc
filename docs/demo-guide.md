@@ -1,4 +1,4 @@
-# Phase 1.1 FastAPI Demo Guide
+# Phase 1.3 FastAPI Demo Guide
 
 ## What this demo is
 A local-only FastAPI + Jinja2 demonstration layer for the Python Phase 1 Identity Resolution Engine.
@@ -31,10 +31,22 @@ uvicorn ire.web.app:create_app --factory --host 127.0.0.1 --port 8000
 - OpenAPI: `http://127.0.0.1:8000/docs`
 
 ## Demo workflow
+Recommended deterministic setup:
+```bash
+python -m ire demo reset --root data/demo-run --yes
+python -m ire demo seed --scenario full-showcase --root data/demo-run
+python -m ire demo status --root data/demo-run
+```
+
+Then walk through:
 1. Submit an identity at `/identities/new`
 2. Upload a CSV or JSON batch at `/identities/batch`
 3. Inspect Golden Records at `/golden-records`
 4. Review manual tasks at `/reviews`
+5. Review potential duplicate queue at `/duplicates`
+6. Check storage integrity report at `/integrity`
+7. Show data quality metrics and source drilldown at `/data-quality`
+8. Export masked evidence from `/api/v1/exports/{dataset}?format=csv|json`
 
 ## API example
 ```bash
@@ -69,8 +81,7 @@ python -m ire web --root data/demo-run
 
 ## Reset demo state
 ```bash
-rm -rf data/demo-run
-python -m ire storage init --root data/demo-run
+python -m ire demo reset --root data/demo-run --yes
 ```
 
 ## Limitations

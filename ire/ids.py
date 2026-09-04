@@ -58,3 +58,15 @@ def new_primary_override_id() -> str:
 
 def new_rollback_id() -> str:
     return new_id("RBK-")
+
+
+def new_duplicate_scan_run_id() -> str:
+    return new_id("DSCAN-")
+
+
+def new_duplicate_candidate_id() -> str:
+    return new_id("DUP-")
+
+
+def new_duplicate_event_id() -> str:
+    return new_id("DEVT-")

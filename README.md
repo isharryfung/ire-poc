@@ -1,14 +1,15 @@
-# Identity Resolution Engine (Phase 1.2 Demo)
+# Identity Resolution Engine (Phase 1.3 Demo)
 
 This repository is a **Python-only Phase 1 Identity Resolution Engine** with a local **FastAPI demonstration layer**.
 
 ## Scope now
-Implemented in Phase 1 / Phase 1.1 / Phase 1.2:
+Implemented in Phase 1 / Phase 1.1 / Phase 1.2 / Phase 1.3:
 - Python package scaffolding (`ire`)
 - Typed domain models and JSON/JSONL file storage
 - Configuration loader/validator
 - Phase 1 ingestion, validation, matching, decisioning, survivorship, and manual review workflow
 - **Phase 1.2 Identity Correction and Golden Record Consolidation** (see below)
+- **Phase 1.3 Operational Governance and Demo Readiness** (see below)
 - CLI commands for processing, preview, review, Golden Record inspection, and the local FastAPI demo
 - FastAPI + Jinja2 browser demo backed by the existing Phase 1 services
 
@@ -35,6 +36,86 @@ pip install -e '.[test]'
 ```bash
 python -m pytest
 ```
+
+## Phase 1.3 Operational Governance and Demo Readiness
+
+Phase 1.3 adds deterministic demo seeding, potential duplicate governance, storage integrity checks,
+data quality metrics, and masked operational exports. Business logic stays in Python domain/services
+with the existing JSON/JSONL repository (single-writer, no DB/ORM/Redis). Phase 2 relationship graph
+features remain explicitly excluded.
+
+### Deterministic demo manager (CLI)
+```bash
+python -m ire demo reset --root data/demo-run --yes
+python -m ire demo seed --scenario standard --root data/demo-run
+python -m ire demo seed --scenario full-showcase --root data/demo-run
+python -m ire demo status --root data/demo-run
+```
+
+Supported scenarios: `empty`, `standard`, `matching`, `conflict`, `golden-merge`, `rollback`, `full-showcase`.
+Seeding writes `state/demo_manifest.json` and is safe/idempotent by scenario+version unless `--force` is used.
+
+### Potential duplicate governance
+```bash
+python -m ire duplicates scan --root data/demo-run
+python -m ire duplicates list --status OPEN --root data/demo-run
+python -m ire duplicates show DUP-... --root data/demo-run
+python -m ire duplicates update DUP-... --status NOT_DUPLICATE --actor demo --reason "verified distinct" --root data/demo-run
+```
+
+Duplicate candidates are never auto-merged. Operators review candidates and then use the existing
+Phase 1.2 merge preview/merge workflow separately.
+
+### Storage integrity and repair preview
+```bash
+python -m ire integrity check --root data/demo-run
+python -m ire integrity repair-preview --root data/demo-run
+```
+
+Integrity checks are read-only. Repair preview is also read-only and does not overwrite corrupted files.
+
+### Data quality metrics
+```bash
+python -m ire data-quality --root data/demo-run
+python -m ire data-quality --source-system SIS --root data/demo-run
+```
+
+Metrics are computed from persisted current state/events with explicit denominators and zero-safe rates.
+
+### Masked exports (CSV/JSON)
+```bash
+python -m ire export golden-records --format csv --output output/golden-records.csv --root data/demo-run
+python -m ire export data-quality --format json --output output/data-quality.json --root data/demo-run
+```
+
+Exports are masked by default in this no-auth prototype and CSV output includes formula-injection protection.
+
+### Phase 1.3 portal and API routes
+
+Portal:
+- `/duplicates`
+- `/duplicates/{candidate_id}`
+- `/integrity`
+- `/data-quality`
+- `/data-quality/sources/{source_system}`
+
+API:
+- `POST /api/v1/duplicates/scan`
+- `GET /api/v1/duplicates`
+- `GET /api/v1/duplicates/{candidate_id}`
+- `POST /api/v1/duplicates/{candidate_id}/status`
+- `GET /api/v1/integrity/check`
+- `GET /api/v1/integrity/repair-preview`
+- `GET /api/v1/data-quality`
+- `GET /api/v1/exports/{dataset}?format=csv|json`
+
+### Recommended stakeholder demo script (`full-showcase`)
+1. `python -m ire demo reset --root data/demo-run --yes`
+2. `python -m ire demo seed --scenario full-showcase --root data/demo-run`
+3. Start web: `python -m ire web --host 127.0.0.1 --port 8000 --root data/demo-run --config-dir config`
+4. Open `/`, then `/duplicates`, `/data-quality`, `/integrity`
+5. Run `POST /api/v1/duplicates/scan`, review candidate detail, then open merge preview from candidate page
+6. Export masked evidence from `/api/v1/exports/...`
 
 ## CLI examples
 ```bash
@@ -167,6 +248,8 @@ python -m ire storage init --root data/demo-run
   - `state/golden_records.json`
   - `state/record_links.json`
   - `state/review_tasks.json`
+  - `state/duplicate_candidates.json`
+  - `state/demo_manifest.json`
 - Append-only events (JSONL):
   - `events/source_records.jsonl`
   - `events/match_runs.jsonl`
@@ -175,5 +258,7 @@ python -m ire storage init --root data/demo-run
   - `events/primary_overrides.jsonl`
   - `events/merge_rollbacks.jsonl`
   - `events/audit_log.jsonl`
+  - `events/duplicate_scan_runs.jsonl`
+  - `events/duplicate_candidate_events.jsonl`
 
 See `docs/demo-guide.md` for the local demo guide.
