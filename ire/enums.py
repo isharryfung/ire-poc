@@ -92,3 +92,19 @@ class SourceTrustLevel(StrEnum):
     HIGH = "HIGH"
     MEDIUM = "MEDIUM"
     LOW = "LOW"
+
+
+class DuplicateSeverity(StrEnum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    BLOCKED = "BLOCKED"
+
+
+class DuplicateCandidateStatus(StrEnum):
+    OPEN = "OPEN"
+    IN_REVIEW = "IN_REVIEW"
+    CONFIRMED_DUPLICATE = "CONFIRMED_DUPLICATE"
+    NOT_DUPLICATE = "NOT_DUPLICATE"
+    DISMISSED = "DISMISSED"
+    STALE = "STALE"
+    MERGED = "MERGED"

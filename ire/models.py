@@ -6,6 +6,8 @@ from enum import Enum
 from typing import Any
 
 from .enums import (
+    DuplicateCandidateStatus,
+    DuplicateSeverity,
     GoldenRecordStatus,
     HistoryEventType,
     IngestStatus,
@@ -656,3 +658,168 @@ class TimelineEntry:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TimelineEntry":
         return cls(**data)
+
+
+@dataclass(frozen=True)
+class DuplicateScanRun:
+    scan_run_id: str
+    policy_version: str
+    scan_version: str
+    created_at: str
+    candidate_count: int
+    notes: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        _require_utc_z_timestamp("created_at", self.created_at)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "DuplicateScanRun":
+        payload = dict(data)
+        payload.setdefault("scan_version", "phase1.3")
+        payload.setdefault("notes", {})
+        payload.setdefault("candidate_count", 0)
+        return cls(**payload)
+
+
+@dataclass(frozen=True)
+class DuplicateCandidate:
+    candidate_id: str
+    pair_key: str
+    left_golden_record_id: str
+    right_golden_record_id: str
+    left_version: int
+    right_version: int
+    severity: DuplicateSeverity
+    status: DuplicateCandidateStatus
+    score: float
+    comparable_fields: int
+    fingerprint: str
+    blocking_reasons: list[str]
+    strong_identifier_conflicts: list[str]
+    dob_conflict: bool
+    evidence: list[dict[str, Any]]
+    blocking_matches: list[str]
+    latest_scan_run_id: str
+    created_at: str
+    updated_at: str
+    actor: str | None = None
+    reason: str | None = None
+
+    def __post_init__(self) -> None:
+        _require_probability("score", self.score)
+        _require_utc_z_timestamp("created_at", self.created_at)
+        _require_utc_z_timestamp("updated_at", self.updated_at)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "candidate_id": self.candidate_id,
+            "pair_key": self.pair_key,
+            "left_golden_record_id": self.left_golden_record_id,
+            "right_golden_record_id": self.right_golden_record_id,
+            "left_version": self.left_version,
+            "right_version": self.right_version,
+            "severity": self.severity.value,
+            "status": self.status.value,
+            "score": self.score,
+            "comparable_fields": self.comparable_fields,
+            "fingerprint": self.fingerprint,
+            "blocking_reasons": list(self.blocking_reasons),
+            "strong_identifier_conflicts": list(self.strong_identifier_conflicts),
+            "dob_conflict": self.dob_conflict,
+            "evidence": list(self.evidence),
+            "blocking_matches": list(self.blocking_matches),
+            "latest_scan_run_id": self.latest_scan_run_id,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "actor": self.actor,
+            "reason": self.reason,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "DuplicateCandidate":
+        payload = dict(data)
+        payload.setdefault("left_version", 1)
+        payload.setdefault("right_version", 1)
+        payload.setdefault("severity", DuplicateSeverity.MEDIUM.value)
+        payload.setdefault("status", DuplicateCandidateStatus.OPEN.value)
+        payload.setdefault("score", 0.0)
+        payload.setdefault("comparable_fields", 0)
+        payload.setdefault("fingerprint", f"{payload.get('pair_key', 'PAIR-UNKNOWN')}:v1")
+        payload.setdefault("blocking_reasons", [])
+        payload.setdefault("strong_identifier_conflicts", [])
+        payload.setdefault("dob_conflict", False)
+        payload.setdefault("evidence", [])
+        payload.setdefault("blocking_matches", [])
+        payload.setdefault("latest_scan_run_id", "")
+        payload.setdefault("created_at", utc_now_iso())
+        payload.setdefault("updated_at", payload["created_at"])
+        payload["severity"] = DuplicateSeverity(payload["severity"])
+        payload["status"] = DuplicateCandidateStatus(payload["status"])
+        return cls(**payload)
+
+
+@dataclass(frozen=True)
+class IntegrityFinding:
+    code: str
+    severity: str
+    entity: str
+    description: str
+    repair_category: str
+    auto_repairable: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "IntegrityFinding":
+        return cls(**data)
+
+
+@dataclass(frozen=True)
+class IntegrityReport:
+    generated_at: str
+    findings: list[IntegrityFinding]
+    summary: dict[str, int]
+
+    def __post_init__(self) -> None:
+        _require_utc_z_timestamp("generated_at", self.generated_at)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "generated_at": self.generated_at,
+            "findings": [item.to_dict() for item in self.findings],
+            "summary": dict(self.summary),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "IntegrityReport":
+        return cls(
+            generated_at=data["generated_at"],
+            findings=[IntegrityFinding.from_dict(item) for item in data.get("findings", [])],
+            summary=dict(data.get("summary", {})),
+        )
+
+
+@dataclass(frozen=True)
+class DemoScenarioManifest:
+    scenario: str
+    version: str
+    seeded_at: str
+    seed_count: int = 0
+    notable_ids: dict[str, str] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        _require_utc_z_timestamp("seeded_at", self.seeded_at)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "DemoScenarioManifest":
+        payload = dict(data)
+        payload.setdefault("seed_count", 0)
+        payload.setdefault("notable_ids", {})
+        return cls(**payload)

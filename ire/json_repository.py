@@ -10,7 +10,11 @@ from typing import Any, Callable, Iterator
 from .exceptions import DuplicateSourceRecordError, RepositoryError
 from .models import (
     AuditEvent,
+    DemoScenarioManifest,
+    DuplicateCandidate,
+    DuplicateScanRun,
     GoldenRecord,
+    IntegrityFinding,
     ManualReviewTask,
     MatchRun,
     MergeEvent,
@@ -37,6 +41,8 @@ class JsonFileRepository:
         self.golden_records_path = self.state_dir / "golden_records.json"
         self.record_links_path = self.state_dir / "record_links.json"
         self.review_tasks_path = self.state_dir / "review_tasks.json"
+        self.duplicate_candidates_path = self.state_dir / "duplicate_candidates.json"
+        self.demo_manifest_path = self.state_dir / "demo_manifest.json"
 
         self.source_records_path = self.events_dir / "source_records.jsonl"
         self.match_runs_path = self.events_dir / "match_runs.jsonl"
@@ -45,13 +51,23 @@ class JsonFileRepository:
         self.merge_events_path = self.events_dir / "merge_events.jsonl"
         self.primary_overrides_path = self.events_dir / "primary_overrides.jsonl"
         self.merge_rollbacks_path = self.events_dir / "merge_rollbacks.jsonl"
+        self.duplicate_scan_runs_path = self.events_dir / "duplicate_scan_runs.jsonl"
+        self.duplicate_candidate_events_path = self.events_dir / "duplicate_candidate_events.jsonl"
+        self.integrity_checks_path = self.events_dir / "integrity_checks.jsonl"
 
     def initialize_storage(self) -> None:
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.events_dir.mkdir(parents=True, exist_ok=True)
-        for json_path in (self.golden_records_path, self.record_links_path, self.review_tasks_path):
+        for json_path in (
+            self.golden_records_path,
+            self.record_links_path,
+            self.review_tasks_path,
+            self.duplicate_candidates_path,
+        ):
             if not json_path.exists():
                 json_path.write_text("[]\n", encoding="utf-8")
+        if not self.demo_manifest_path.exists():
+            self.demo_manifest_path.write_text("{}\n", encoding="utf-8")
         for jsonl_path in (
             self.source_records_path,
             self.match_runs_path,
@@ -60,6 +76,9 @@ class JsonFileRepository:
             self.merge_events_path,
             self.primary_overrides_path,
             self.merge_rollbacks_path,
+            self.duplicate_scan_runs_path,
+            self.duplicate_candidate_events_path,
+            self.integrity_checks_path,
         ):
             if not jsonl_path.exists():
                 jsonl_path.write_text("", encoding="utf-8")
@@ -69,6 +88,7 @@ class JsonFileRepository:
         self._read_state_array(self.golden_records_path)
         self._read_state_array(self.record_links_path)
         self._read_state_array(self.review_tasks_path)
+        self._read_state_array(self.duplicate_candidates_path)
 
     def _read_state_array(self, path: Path) -> list[dict[str, Any]]:
         try:
@@ -92,6 +112,30 @@ class JsonFileRepository:
         backup_path = path.with_suffix(path.suffix + ".bak")
         shutil.copy2(path, backup_path)
 
+        with NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=path.parent) as tmp_file:
+            tmp_file.write(serialized + "\n")
+            temp_path = Path(tmp_file.name)
+        temp_path.replace(path)
+
+    def _read_state_object(self, path: Path) -> dict[str, Any]:
+        try:
+            content = path.read_text(encoding="utf-8")
+            data = json.loads(content or "{}")
+        except json.JSONDecodeError as exc:
+            raise RepositoryError(f"corrupted JSON state file: {path}") from exc
+        if not isinstance(data, dict):
+            raise RepositoryError(f"state file must contain JSON object: {path}")
+        return data
+
+    def _write_state_object_atomic(self, path: Path, payload: dict[str, Any]) -> None:
+        _ = self._read_state_object(path)
+        serialized = json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)
+        try:
+            json.loads(serialized)
+        except json.JSONDecodeError as exc:
+            raise RepositoryError(f"internal serialization error for state file: {path}") from exc
+        backup_path = path.with_suffix(path.suffix + ".bak")
+        shutil.copy2(path, backup_path)
         with NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=path.parent) as tmp_file:
             tmp_file.write(serialized + "\n")
             temp_path = Path(tmp_file.name)
@@ -266,6 +310,36 @@ class JsonFileRepository:
                 return event
         return None
 
+    def load_duplicate_candidates(self) -> list[DuplicateCandidate]:
+        return self._load_typed_state(self.duplicate_candidates_path, DuplicateCandidate.from_dict)
+
+    def save_duplicate_candidates(self, candidates: list[DuplicateCandidate]) -> None:
+        self._write_state_array_atomic(self.duplicate_candidates_path, [item.to_dict() for item in candidates])
+
+    def append_duplicate_scan_run(self, scan_run: DuplicateScanRun) -> None:
+        self._append_jsonl(self.duplicate_scan_runs_path, scan_run.to_dict())
+
+    def load_duplicate_scan_runs(self) -> list[DuplicateScanRun]:
+        return self._load_typed_jsonl(self.duplicate_scan_runs_path, DuplicateScanRun.from_dict)
+
+    def append_duplicate_candidate_event(self, payload: dict) -> None:
+        self._append_jsonl(self.duplicate_candidate_events_path, payload)
+
+    def load_demo_manifest(self) -> DemoScenarioManifest | None:
+        data = self._read_state_object(self.demo_manifest_path)
+        if not data:
+            return None
+        return DemoScenarioManifest.from_dict(data)
+
+    def save_demo_manifest(self, manifest: DemoScenarioManifest) -> None:
+        self._write_state_object_atomic(self.demo_manifest_path, manifest.to_dict())
+
+    def clear_demo_manifest(self) -> None:
+        self._write_state_object_atomic(self.demo_manifest_path, {})
+
+    def save_integrity_finding_event(self, finding: IntegrityFinding) -> None:
+        self._append_jsonl(self.integrity_checks_path, finding.to_dict())
+
     # --- Phase 1.2: transactional snapshot/restore ----------------------
 
     _SNAPSHOT_ATTRS = (
@@ -277,6 +351,11 @@ class JsonFileRepository:
         "merge_events_path",
         "primary_overrides_path",
         "merge_rollbacks_path",
+        "duplicate_candidates_path",
+        "demo_manifest_path",
+        "duplicate_scan_runs_path",
+        "duplicate_candidate_events_path",
+        "integrity_checks_path",
     )
 
     @contextmanager

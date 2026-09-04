@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% import "macros/components.html" as comp %}
+{% block title %}Potential Duplicates · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Governance', 'url': None}, {'label': 'Potential Duplicates', 'url': None}]) }}{% endblock %}
+{% block page_header %}{{ comp.page_header('Potential Duplicates', 'Read-only duplicate discovery with controlled analyst lifecycle actions.') }}{% endblock %}
+{% block content %}
+<section class="surface-card mb-4">
+  <div class="surface-card__body d-flex flex-wrap gap-2">
+    <form method="post" action="/duplicates/scan">
+      <button class="btn btn-primary" type="submit">Run Duplicate Scan</button>
+    </form>
+    <a class="btn btn-outline-primary" href="/api/v1/exports/duplicate-candidates?format=csv">Export CSV</a>
+    <a class="btn btn-outline-primary" href="/api/v1/exports/duplicate-candidates?format=json">Export JSON</a>
+  </div>
+</section>
+<section class="surface-card mb-4">
+  <div class="surface-card__body">
+    <form class="row g-3 align-items-end" method="get">
+      <div class="col-lg-3"><label class="form-label" for="status">Status</label><input class="form-control" id="status" name="status" value="{{ filters.status }}"></div>
+      <div class="col-lg-3"><label class="form-label" for="severity">Severity</label><input class="form-control" id="severity" name="severity" value="{{ filters.severity }}"></div>
+      <div class="col-lg-4"><label class="form-label" for="search">Search</label><input class="form-control" id="search" name="search" value="{{ filters.search }}"></div>
+      <div class="col-lg-2 d-flex gap-2"><button class="btn btn-primary" type="submit">Apply</button><a class="btn btn-outline-secondary" href="/duplicates">Reset</a></div>
+    </form>
+  </div>
+</section>
+{% if rows %}
+<section class="surface-card">
+  <div class="surface-card__body">
+    <div class="table-shell"><div class="table-responsive">
+      <table class="table">
+        <thead><tr><th>Candidate</th><th>Pair</th><th>Status</th><th>Severity</th><th>Score</th><th>Conflict</th><th>Updated</th></tr></thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td><a href="/duplicates/{{ row.candidate_id }}">{{ row.candidate_id }}</a></td>
+              <td>{{ row.left_golden_record_id }} ↔ {{ row.right_golden_record_id }}</td>
+              <td>{{ comp.status_badge(row.status) }}</td>
+              <td>{{ comp.status_badge(row.severity) }}</td>
+              <td>{{ "%.3f"|format(row.score) }}</td>
+              <td>{% if row.strong_identifier_conflicts or row.dob_conflict %}Yes{% else %}No{% endif %}</td>
+              <td>{{ row.updated_at }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div></div>
+  </div>
+</section>
+{% else %}
+  {{ comp.empty_state('No duplicate candidates available.', 'Run the duplicate scan to build a governance queue.') }}
+{% endif %}
+{% endblock %}

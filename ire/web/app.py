@@ -19,7 +19,7 @@ from ire.exceptions import (
     ValidationError,
 )
 from ire.web.dependencies import STATIC_DIR, TEMPLATES_DIR, WebRuntime, create_runtime
-from ire.web.routers import api, configuration, dashboard, golden, history, records, reviews
+from ire.web.routers import api, configuration, dashboard, golden, governance, history, records, reviews
 
 
 def create_app(
@@ -84,6 +84,7 @@ def create_app(
     app.include_router(dashboard.router)
     app.include_router(records.router)
     app.include_router(golden.router)
+    app.include_router(governance.router)
     app.include_router(history.router)
     app.include_router(reviews.router)
     return app

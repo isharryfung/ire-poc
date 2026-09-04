@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% import "macros/components.html" as comp %}
+{% block title %}Storage Integrity · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Governance', 'url': None}, {'label': 'Storage Integrity', 'url': None}]) }}{% endblock %}
+{% block page_header %}{{ comp.page_header('Storage Integrity', 'Read-only integrity validation with preview-only deterministic repair guidance.') }}{% endblock %}
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-md-3">{{ comp.kpi_card('Critical', report.summary.get('CRITICAL', 0), color='danger') }}</div>
+  <div class="col-md-3">{{ comp.kpi_card('Errors', report.summary.get('ERROR', 0), color='warning') }}</div>
+  <div class="col-md-3">{{ comp.kpi_card('Warnings', report.summary.get('WARNING', 0), color='info') }}</div>
+  <div class="col-md-3">{{ comp.kpi_card('Info', report.summary.get('INFO', 0), color='secondary') }}</div>
+</div>
+{% if report.findings %}
+<section class="surface-card mb-4"><div class="surface-card__body">
+  <div class="table-shell"><div class="table-responsive">
+    <table class="table">
+      <thead><tr><th>Code</th><th>Severity</th><th>Entity</th><th>Description</th><th>Repair Category</th><th>Auto Repairable</th></tr></thead>
+      <tbody>
+        {% for finding in report.findings %}
+          <tr>
+            <td>{{ finding.code }}</td>
+            <td>{{ comp.status_badge(finding.severity) }}</td>
+            <td>{{ finding.entity }}</td>
+            <td>{{ finding.description }}</td>
+            <td>{{ finding.repair_category }}</td>
+            <td>{{ 'Yes' if finding.auto_repairable else 'No' }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div></div>
+</div></section>
+{% else %}
+  {{ comp.empty_state('No integrity findings.', 'Current JSON/JSONL storage passed read-only checks.') }}
+{% endif %}
+<section class="surface-card"><div class="surface-card__body">
+  <h2 class="h5">Repair Preview (Read-only)</h2>
+  <pre class="small mb-0">{{ preview | tojson(indent=2) }}</pre>
+</div></section>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% import "macros/components.html" as comp %}
+{% block title %}Duplicate Candidate {{ candidate.candidate_id }} · IRE Operations Portal{% endblock %}
+{% block breadcrumbs %}{{ comp.breadcrumbs([{'label': 'Home', 'url': '/'}, {'label': 'Governance', 'url': None}, {'label': 'Potential Duplicates', 'url': '/duplicates'}, {'label': candidate.candidate_id, 'url': None}]) }}{% endblock %}
+{% block page_header %}{{ comp.page_header('Duplicate Candidate ' ~ candidate.candidate_id, 'Manual governance review only. Golden merge safety checks still apply.') }}{% endblock %}
+{% block content %}
+{% if message %}<div class="alert alert-success" role="alert">{{ message }}</div>{% endif %}
+<section class="surface-card mb-4"><div class="surface-card__body">
+  <div class="row g-3">
+    <div class="col-md-4"><strong>Status</strong><div>{{ comp.status_badge(candidate.status) }}</div></div>
+    <div class="col-md-4"><strong>Severity</strong><div>{{ comp.status_badge(candidate.severity) }}</div></div>
+    <div class="col-md-4"><strong>Score</strong><div>{{ "%.3f"|format(candidate.score) }}</div></div>
+  </div>
+  <hr>
+  <p class="mb-1"><strong>Pair:</strong> {{ candidate.left_golden_record_id }} ↔ {{ candidate.right_golden_record_id }}</p>
+  <p class="mb-1"><strong>Conflicts:</strong> {{ candidate.strong_identifier_conflicts|join(', ') or 'None' }}{% if candidate.dob_conflict %}; DOB conflict{% endif %}</p>
+  <p class="mb-0"><strong>Blocking Evidence:</strong> {{ candidate.blocking_matches|join(', ') or 'N/A' }}</p>
+</div></section>
+<section class="surface-card mb-4"><div class="surface-card__body">
+  <h2 class="h5">Update Status</h2>
+  <form method="post" action="/duplicates/{{ candidate.candidate_id }}/status" class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label" for="status">Status</label>
+      <select class="form-select" id="status" name="status" required>
+        <option value="OPEN">OPEN</option>
+        <option value="IN_REVIEW" selected>IN_REVIEW</option>
+        <option value="CONFIRMED_DUPLICATE">CONFIRMED_DUPLICATE</option>
+        <option value="NOT_DUPLICATE">NOT_DUPLICATE</option>
+        <option value="DISMISSED">DISMISSED</option>
+      </select>
+    </div>
+    <div class="col-md-4"><label class="form-label" for="actor">Actor</label><input class="form-control" id="actor" name="actor" placeholder="analyst-1"></div>
+    <div class="col-md-4"><label class="form-label" for="reason">Reason</label><input class="form-control" id="reason" name="reason" placeholder="required for dismiss/not-duplicate"></div>
+    <div class="col-12">
+      <small class="text-muted">Actor and reason are required when setting status to <code>NOT_DUPLICATE</code> or <code>DISMISSED</code>.</small>
+    </div>
+    <div class="col-12 d-flex gap-2">
+      <button class="btn btn-primary" type="submit">Apply</button>
+      <a class="btn btn-outline-primary" href="/golden-records/merge/preview?survivor={{ candidate.left_golden_record_id }}&loser={{ candidate.right_golden_record_id }}">Review Merge Preview</a>
+    </div>
+  </form>
+</div></section>
+{% endblock %}

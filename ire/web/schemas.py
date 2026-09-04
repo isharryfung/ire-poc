@@ -48,3 +48,9 @@ class MergeRequest(BaseModel):
 class RollbackRequest(BaseModel):
     actor: str = Field(..., min_length=1)
     reason: str = Field(..., min_length=1)
+
+
+class DuplicateStatusUpdateRequest(BaseModel):
+    status: Literal["OPEN", "IN_REVIEW", "CONFIRMED_DUPLICATE", "NOT_DUPLICATE", "DISMISSED"]
+    actor: str | None = None
+    reason: str | None = None

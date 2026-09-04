@@ -24,9 +24,24 @@ from .golden_merge import (
     rollback_merge,
     rollback_merge_preview,
 )
+from .governance import (
+    data_quality_summary,
+    demo_reset,
+    demo_seed,
+    demo_status,
+    duplicate_scan,
+    export_dataset,
+    integrity_check,
+    integrity_repair_preview,
+    list_duplicate_candidates,
+    sanitize_download_name,
+    show_duplicate_candidate,
+    update_duplicate_candidate_status,
+)
 from .json_repository import JsonFileRepository
 from .primary_override import override_primary_value
 from .review import approve_review, list_review_tasks, reject_review, show_review_task
+from .safety import mask_email, mask_hkid, mask_phone
 from .service import preview_record, process_batch, process_record
 from .timeline import get_golden_timeline
 
@@ -158,11 +173,92 @@ def build_parser() -> argparse.ArgumentParser:
     web_parser.add_argument("--root", default="data/demo-run")
     web_parser.add_argument("--config-dir", default="config")
 
+    demo_parser = subparsers.add_parser("demo", help="Deterministic demo scenario operations")
+    demo_sub = demo_parser.add_subparsers(dest="demo_command")
+    demo_reset_cmd = demo_sub.add_parser("reset", help="Reset demo root")
+    demo_reset_cmd.add_argument("--root", default="data/demo-run")
+    demo_reset_cmd.add_argument("--yes", action="store_true")
+    demo_seed_cmd = demo_sub.add_parser("seed", help="Seed demo scenario")
+    demo_seed_cmd.add_argument("--scenario", required=True, choices=["empty", "standard", "matching", "conflict", "golden-merge", "rollback", "full-showcase"])
+    demo_seed_cmd.add_argument("--config-dir", default="config")
+    demo_seed_cmd.add_argument("--root", default="data/demo-run")
+    demo_seed_cmd.add_argument("--force", action="store_true")
+    demo_status_cmd = demo_sub.add_parser("status", help="Show demo scenario status")
+    demo_status_cmd.add_argument("--root", default="data/demo-run")
+
+    dup_parser = subparsers.add_parser("duplicates", help="Potential golden duplicate governance")
+    dup_sub = dup_parser.add_subparsers(dest="duplicates_command")
+    dup_scan = dup_sub.add_parser("scan", help="Scan golden records for duplicate candidates")
+    dup_scan.add_argument("--config-dir", default="config")
+    dup_scan.add_argument("--root", default="data")
+    dup_scan.add_argument("--include-superseded", action="store_true")
+    dup_list = dup_sub.add_parser("list", help="List duplicate candidates")
+    dup_list.add_argument("--root", default="data")
+    dup_list.add_argument("--status", default=None)
+    dup_list.add_argument("--severity", default=None)
+    dup_list.add_argument("--min-score", type=float, default=None)
+    dup_list.add_argument("--max-score", type=float, default=None)
+    dup_list.add_argument("--has-conflict", choices=["true", "false"], default=None)
+    dup_list.add_argument("--golden-id", default=None)
+    dup_list.add_argument("--scan-run", default=None)
+    dup_list.add_argument("--search", default=None)
+    dup_show = dup_sub.add_parser("show", help="Show duplicate candidate detail")
+    dup_show.add_argument("candidate_id")
+    dup_show.add_argument("--root", default="data")
+    dup_update = dup_sub.add_parser("update", help="Update duplicate candidate status")
+    dup_update.add_argument("candidate_id")
+    dup_update.add_argument("--status", required=True, choices=["OPEN", "IN_REVIEW", "CONFIRMED_DUPLICATE", "NOT_DUPLICATE", "DISMISSED"])
+    dup_update.add_argument("--actor", default=None)
+    dup_update.add_argument("--reason", default=None)
+    dup_update.add_argument("--root", default="data")
+
+    integrity_parser = subparsers.add_parser("integrity", help="Storage integrity checks")
+    integrity_sub = integrity_parser.add_subparsers(dest="integrity_command")
+    integrity_check_cmd = integrity_sub.add_parser("check", help="Run read-only integrity checks")
+    integrity_check_cmd.add_argument("--root", default="data")
+    integrity_preview_cmd = integrity_sub.add_parser("repair-preview", help="Preview deterministic safe repairs")
+    integrity_preview_cmd.add_argument("--root", default="data")
+
+    quality_parser = subparsers.add_parser("data-quality", help="Data quality metrics")
+    quality_parser.add_argument("--config-dir", default="config")
+    quality_parser.add_argument("--root", default="data")
+    quality_parser.add_argument("--source-system", default=None)
+
+    export_parser = subparsers.add_parser("export", help="Masked operational exports")
+    export_parser.add_argument("dataset", choices=["golden-records", "record-links", "review-queue", "duplicate-candidates", "match-history", "activity-log", "data-quality", "integrity-findings", "golden-record-report"])
+    export_parser.add_argument("--format", required=True, choices=["csv", "json"])
+    export_parser.add_argument("--output", required=True)
+    export_parser.add_argument("--config-dir", default="config")
+    export_parser.add_argument("--root", default="data")
+    export_parser.add_argument("--golden-id", default=None)
+
     return parser
 
 
 def _print_json(payload) -> None:
-    print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+    def _mask_field(field_name: str, value):
+        if value is None:
+            return None
+        if isinstance(value, list):
+            return [_mask_field(field_name, item) for item in value]
+        if isinstance(value, dict):
+            return {k: _mask_field(k, v) for k, v in value.items()}
+        if field_name == "hkid":
+            return mask_hkid(str(value))
+        if field_name == "email":
+            return mask_email(str(value))
+        if field_name == "phone":
+            return mask_phone(str(value))
+        if field_name == "date_of_birth":
+            text = str(value)
+            return f"{text[:4]}-**-**" if len(text) >= 4 else "**-**-**"
+        if field_name == "address":
+            text = str(value)
+            return f"{text[:6]}***" if text else text
+        return value
+
+    safe_payload = payload if not isinstance(payload, (dict, list)) else _mask_field("", payload)
+    print(json.dumps(safe_payload, ensure_ascii=False, indent=2, sort_keys=True))  # lgtm[py/clear-text-logging-sensitive-data]
 
 
 def _field_value_summary(value) -> dict:
@@ -432,6 +528,100 @@ def main(argv: list[str] | None = None) -> int:
 
             app = create_app(root_dir=args.root, config_dir=args.config_dir)
             uvicorn.run(app, host=args.host, port=args.port)
+            return EXIT_SUCCESS
+
+        if args.command == "demo" and args.demo_command == "reset":
+            repo = JsonFileRepository(args.root)
+            _print_json(demo_reset(repo, args.root, yes=args.yes))
+            return EXIT_SUCCESS
+
+        if args.command == "demo" and args.demo_command == "seed":
+            config, repo = _load_runtime(args.config_dir, args.root)
+            _print_json(demo_seed(repo, config, args.scenario, force=args.force))
+            return EXIT_SUCCESS
+
+        if args.command == "demo" and args.demo_command == "status":
+            repo = JsonFileRepository(args.root)
+            repo.initialize_storage()
+            _print_json(demo_status(repo))
+            return EXIT_SUCCESS
+
+        if args.command == "duplicates" and args.duplicates_command == "scan":
+            config, repo = _load_runtime(args.config_dir, args.root)
+            _print_json(duplicate_scan(repo, config, include_superseded=args.include_superseded))
+            return EXIT_SUCCESS
+
+        if args.command == "duplicates" and args.duplicates_command == "list":
+            repo = JsonFileRepository(args.root)
+            repo.initialize_storage()
+            has_conflict = None
+            if args.has_conflict is not None:
+                has_conflict = args.has_conflict == "true"
+            rows = list_duplicate_candidates(
+                repo,
+                status=args.status,
+                severity=args.severity,
+                min_score=args.min_score,
+                max_score=args.max_score,
+                has_conflict=has_conflict,
+                golden_id=args.golden_id,
+                scan_run_id=args.scan_run,
+                search=args.search,
+            )
+            _print_json([item.to_dict() for item in rows])
+            return EXIT_SUCCESS
+
+        if args.command == "duplicates" and args.duplicates_command == "show":
+            repo = JsonFileRepository(args.root)
+            repo.initialize_storage()
+            _print_json(show_duplicate_candidate(repo, args.candidate_id).to_dict())
+            return EXIT_SUCCESS
+
+        if args.command == "duplicates" and args.duplicates_command == "update":
+            repo = JsonFileRepository(args.root)
+            repo.initialize_storage()
+            _print_json(
+                update_duplicate_candidate_status(
+                    repo,
+                    args.candidate_id,
+                    args.status,
+                    actor=args.actor,
+                    reason=args.reason,
+                ).to_dict()
+            )
+            return EXIT_SUCCESS
+
+        if args.command == "integrity" and args.integrity_command == "check":
+            repo = JsonFileRepository(args.root)
+            repo.initialize_storage()
+            _print_json(integrity_check(repo).to_dict())
+            return EXIT_SUCCESS
+
+        if args.command == "integrity" and args.integrity_command == "repair-preview":
+            repo = JsonFileRepository(args.root)
+            repo.initialize_storage()
+            _print_json(integrity_repair_preview(repo))
+            return EXIT_SUCCESS
+
+        if args.command == "data-quality":
+            config, repo = _load_runtime(args.config_dir, args.root)
+            _print_json(data_quality_summary(repo, config, source_system=args.source_system))
+            return EXIT_SUCCESS
+
+        if args.command == "export":
+            config, repo = _load_runtime(args.config_dir, args.root)
+            content_type, content = export_dataset(
+                repo,
+                config,
+                args.dataset,
+                args.format,
+                filters={"golden_id": args.golden_id} if args.golden_id else {},
+            )
+            del content_type
+            output_path = Path(args.output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(content)
+            _print_json({"output": str(output_path), "filename": sanitize_download_name(output_path.name)})
             return EXIT_SUCCESS
     except ConfigurationError as exc:
         print(f"error: {exc}", file=sys.stderr)
